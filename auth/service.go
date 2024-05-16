@@ -50,6 +50,9 @@ type Authn interface {
 	// issued by the user identified by the provided key.
 	Revoke(ctx context.Context, token, id string) error
 
+	// RevokeToken revokes the token.
+	RevokeToken(ctx context.Context, token string) error
+
 	// RetrieveKey retrieves data for the Key identified by the provided
 	// ID, that is issued by the user identified by the provided key.
 	RetrieveKey(ctx context.Context, token, id string) (Key, error)
@@ -103,6 +106,12 @@ func New(keys KeyRepository, domains DomainsRepository, idp magistrala.IDProvide
 
 func (svc service) Issue(ctx context.Context, token string, key Key) (Token, error) {
 	key.IssuedAt = time.Now().UTC()
+	id, err := svc.idProvider.ID()
+	if err != nil {
+		return Token{}, errors.Wrap(errIssueUser, err)
+	}
+	key.ID = id
+
 	switch key.Type {
 	case APIKey:
 		return svc.userKey(ctx, token, key)
@@ -118,7 +127,7 @@ func (svc service) Issue(ctx context.Context, token string, key Key) (Token, err
 }
 
 func (svc service) Revoke(ctx context.Context, token, id string) error {
-	issuerID, _, err := svc.authenticate(token)
+	issuerID, _, err := svc.authenticate(ctx, token)
 	if err != nil {
 		return errors.Wrap(errRevoke, err)
 	}
@@ -128,8 +137,12 @@ func (svc service) Revoke(ctx context.Context, token, id string) error {
 	return nil
 }
 
+func (svc service) RevokeToken(ctx context.Context, token string) error {
+	return svc.tokenizer.Revoke(ctx, token)
+}
+
 func (svc service) RetrieveKey(ctx context.Context, token, id string) (Key, error) {
-	issuerID, _, err := svc.authenticate(token)
+	issuerID, _, err := svc.authenticate(ctx, token)
 	if err != nil {
 		return Key{}, errors.Wrap(errRetrieve, err)
 	}
@@ -142,7 +155,7 @@ func (svc service) RetrieveKey(ctx context.Context, token, id string) (Key, erro
 }
 
 func (svc service) Identify(ctx context.Context, token string) (Key, error) {
-	key, err := svc.tokenizer.Parse(token)
+	key, err := svc.tokenizer.Parse(ctx, token)
 	if errors.Contains(err, ErrExpiry) {
 		err = svc.keys.Remove(ctx, key.Issuer, key.ID)
 		return Key{}, errors.Wrap(svcerr.ErrAuthentication, errors.Wrap(ErrKeyExpired, err))
@@ -315,7 +328,7 @@ func (svc service) invitationKey(ctx context.Context, key Key) (Token, error) {
 }
 
 func (svc service) refreshKey(ctx context.Context, token string, key Key) (Token, error) {
-	k, err := svc.tokenizer.Parse(token)
+	k, err := svc.tokenizer.Parse(ctx, token)
 	if err != nil {
 		return Token{}, errors.Wrap(errRetrieve, err)
 	}
@@ -379,7 +392,7 @@ func (svc service) checkUserDomain(ctx context.Context, key Key) (subject string
 }
 
 func (svc service) userKey(ctx context.Context, token string, key Key) (Token, error) {
-	id, sub, err := svc.authenticate(token)
+	id, sub, err := svc.authenticate(ctx, token)
 	if err != nil {
 		return Token{}, errors.Wrap(errIssueUser, err)
 	}
@@ -388,12 +401,6 @@ func (svc service) userKey(ctx context.Context, token string, key Key) (Token, e
 	if key.Subject == "" {
 		key.Subject = sub
 	}
-
-	keyID, err := svc.idProvider.ID()
-	if err != nil {
-		return Token{}, errors.Wrap(errIssueUser, err)
-	}
-	key.ID = keyID
 
 	if _, err := svc.keys.Save(ctx, key); err != nil {
 		return Token{}, errors.Wrap(errIssueUser, err)
@@ -407,8 +414,8 @@ func (svc service) userKey(ctx context.Context, token string, key Key) (Token, e
 	return Token{AccessToken: tkn}, nil
 }
 
-func (svc service) authenticate(token string) (string, string, error) {
-	key, err := svc.tokenizer.Parse(token)
+func (svc service) authenticate(ctx context.Context, token string) (string, string, error) {
+	key, err := svc.tokenizer.Parse(ctx, token)
 	if err != nil {
 		return "", "", errors.Wrap(svcerr.ErrAuthentication, err)
 	}
