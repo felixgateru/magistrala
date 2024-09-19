@@ -26,11 +26,12 @@ const (
 )
 
 type authGrpcClient struct {
-	issue     endpoint.Endpoint
-	refresh   endpoint.Endpoint
-	identify  endpoint.Endpoint
-	authorize endpoint.Endpoint
-	timeout   time.Duration
+	issue        endpoint.Endpoint
+	refresh      endpoint.Endpoint
+	identify     endpoint.Endpoint
+	authorize    endpoint.Endpoint
+	retrieveJWKS endpoint.Endpoint
+	timeout      time.Duration
 }
 
 // NewAuthClient returns new auth gRPC client instance.
@@ -59,6 +60,14 @@ func NewAuthClient(conn *grpc.ClientConn, timeout time.Duration) auth.AuthClient
 			encodeIdentifyRequest,
 			decodeIdentifyResponse,
 			magistrala.IdentityRes{},
+		).Endpoint(),
+		retrieveJWKS: kitgrpc.NewClient(
+			conn,
+			authnSvcName,
+			"GetJWKS",
+			encodeRetrieveJWKSRequest,
+			decodeRetrieveJWKSResponse,
+			magistrala.RetrieveJWKSRes{},
 		).Endpoint(),
 		authorize: kitgrpc.NewClient(
 			conn,
@@ -140,6 +149,38 @@ func encodeIdentifyRequest(_ context.Context, grpcReq interface{}) (interface{},
 func decodeIdentifyResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {
 	res := grpcRes.(*magistrala.IdentityRes)
 	return identityRes{subject: res.GetId(), userID: res.GetUserId(), domainID: res.GetDomainId()}, nil
+}
+
+func (client authGrpcClient) RetrieveJWKS(ctx context.Context, req *magistrala.RetrieveJWKSReq, _ ...grpc.CallOption) (*magistrala.RetrieveJWKSRes, error) {
+	ctx, cancel := context.WithTimeout(ctx, client.timeout)
+	defer cancel()
+
+	res, err := client.retrieveJWKS(ctx, nil)
+	if err != nil {
+		return &magistrala.RetrieveJWKSRes{}, decodeError(err)
+	}
+	return res.(*magistrala.RetrieveJWKSRes), nil
+}
+
+func encodeRetrieveJWKSRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
+	req := grpcReq.(retrieveJWKSReq)
+	return &magistrala.RetrieveJWKSReq{KeyID: req.keyID}, nil
+}
+
+func decodeRetrieveJWKSResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {
+	res := grpcRes.(*magistrala.RetrieveJWKSRes)
+	keys := []mgauth.JWK{}
+	for _, jwk := range res.GetKeys() {
+		keys = append(keys, mgauth.JWK{
+			Kty: jwk.GetKty(),
+			Kid: jwk.GetKid(),
+			N:   jwk.GetN(),
+			E:   jwk.GetE(),
+		})
+	}
+	return retrieveJWKSRes{JWKS: mgauth.JWKS{
+		Keys: keys,
+	}}, nil
 }
 
 func (client authGrpcClient) Authorize(ctx context.Context, req *magistrala.AuthorizeReq, _ ...grpc.CallOption) (r *magistrala.AuthorizeRes, err error) {

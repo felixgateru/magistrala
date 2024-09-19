@@ -216,6 +216,10 @@ func (es *eventStore) Identify(ctx context.Context, token string) (auth.Key, err
 	return es.svc.Identify(ctx, token)
 }
 
+func (es *eventStore) RetrieveJWKS(keyID string) (auth.JWKS, error) {
+	return es.svc.RetrieveJWKS(keyID)
+}
+
 func (es *eventStore) Authorize(ctx context.Context, pr auth.PolicyReq) error {
 	return es.svc.Authorize(ctx, pr)
 }

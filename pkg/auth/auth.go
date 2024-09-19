@@ -32,6 +32,9 @@ type AuthClient interface {
 	// other reason, non-nil error value is returned in response.
 	Identify(ctx context.Context, in *magistrala.IdentityReq, opts ...grpc.CallOption) (*magistrala.IdentityRes, error)
 
+	// RetrieveJWKS retrieves the a JWKS used to validate a token.
+	RetrieveJWKS(ctx context.Context, in *magistrala.RetrieveJWKSReq, opts ...grpc.CallOption) (*magistrala.RetrieveJWKSRes, error)
+
 	// Authorize checks if the `subject` is allowed to perform the `relation` on the `object`.
 	// Returns a non-nil error if the `subject` is not authorized.
 	Authorize(ctx context.Context, in *magistrala.AuthorizeReq, opts ...grpc.CallOption) (*magistrala.AuthorizeRes, error)

@@ -123,9 +123,10 @@ var AuthzService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	AuthnService_Issue_FullMethodName    = "/magistrala.AuthnService/Issue"
-	AuthnService_Refresh_FullMethodName  = "/magistrala.AuthnService/Refresh"
-	AuthnService_Identify_FullMethodName = "/magistrala.AuthnService/Identify"
+	AuthnService_Issue_FullMethodName        = "/magistrala.AuthnService/Issue"
+	AuthnService_Refresh_FullMethodName      = "/magistrala.AuthnService/Refresh"
+	AuthnService_Identify_FullMethodName     = "/magistrala.AuthnService/Identify"
+	AuthnService_RetrieveJWKS_FullMethodName = "/magistrala.AuthnService/RetrieveJWKS"
 )
 
 // AuthnServiceClient is the client API for AuthnService service.
@@ -138,6 +139,7 @@ type AuthnServiceClient interface {
 	Issue(ctx context.Context, in *IssueReq, opts ...grpc.CallOption) (*Token, error)
 	Refresh(ctx context.Context, in *RefreshReq, opts ...grpc.CallOption) (*Token, error)
 	Identify(ctx context.Context, in *IdentityReq, opts ...grpc.CallOption) (*IdentityRes, error)
+	RetrieveJWKS(ctx context.Context, in *RetrieveJWKSReq, opts ...grpc.CallOption) (*RetrieveJWKSRes, error)
 }
 
 type authnServiceClient struct {
@@ -178,6 +180,16 @@ func (c *authnServiceClient) Identify(ctx context.Context, in *IdentityReq, opts
 	return out, nil
 }
 
+func (c *authnServiceClient) RetrieveJWKS(ctx context.Context, in *RetrieveJWKSReq, opts ...grpc.CallOption) (*RetrieveJWKSRes, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RetrieveJWKSRes)
+	err := c.cc.Invoke(ctx, AuthnService_RetrieveJWKS_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthnServiceServer is the server API for AuthnService service.
 // All implementations must embed UnimplementedAuthnServiceServer
 // for forward compatibility
@@ -188,6 +200,7 @@ type AuthnServiceServer interface {
 	Issue(context.Context, *IssueReq) (*Token, error)
 	Refresh(context.Context, *RefreshReq) (*Token, error)
 	Identify(context.Context, *IdentityReq) (*IdentityRes, error)
+	RetrieveJWKS(context.Context, *RetrieveJWKSReq) (*RetrieveJWKSRes, error)
 	mustEmbedUnimplementedAuthnServiceServer()
 }
 
@@ -203,6 +216,9 @@ func (UnimplementedAuthnServiceServer) Refresh(context.Context, *RefreshReq) (*T
 }
 func (UnimplementedAuthnServiceServer) Identify(context.Context, *IdentityReq) (*IdentityRes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Identify not implemented")
+}
+func (UnimplementedAuthnServiceServer) RetrieveJWKS(context.Context, *RetrieveJWKSReq) (*RetrieveJWKSRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RetrieveJWKS not implemented")
 }
 func (UnimplementedAuthnServiceServer) mustEmbedUnimplementedAuthnServiceServer() {}
 
@@ -271,6 +287,24 @@ func _AuthnService_Identify_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthnService_RetrieveJWKS_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetrieveJWKSReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthnServiceServer).RetrieveJWKS(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthnService_RetrieveJWKS_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthnServiceServer).RetrieveJWKS(ctx, req.(*RetrieveJWKSReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthnService_ServiceDesc is the grpc.ServiceDesc for AuthnService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -289,6 +323,10 @@ var AuthnService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Identify",
 			Handler:    _AuthnService_Identify_Handler,
+		},
+		{
+			MethodName: "RetrieveJWKS",
+			Handler:    _AuthnService_RetrieveJWKS_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

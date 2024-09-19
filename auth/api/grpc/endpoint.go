@@ -110,3 +110,14 @@ func deleteUserPoliciesEndpoint(svc auth.Service) endpoint.Endpoint {
 		return deletePolicyRes{deleted: true}, nil
 	}
 }
+
+func retrieveJWKSEndpoint(svc auth.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(retrieveJWKSReq)
+		jwks, err := svc.RetrieveJWKS(req.keyID)
+		if err != nil {
+			return nil, err
+		}
+		return retrieveJWKSRes{jwks}, nil
+	}
+}

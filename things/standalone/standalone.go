@@ -51,6 +51,10 @@ func (repo singleUserAuth) Identify(ctx context.Context, in *magistrala.Identity
 	return &magistrala.IdentityRes{Id: repo.id}, nil
 }
 
+func( repo singleUserAuth) RetrieveJWKS(ctx context.Context, in *magistrala.RetrieveJWKSReq, opts ...grpc.CallOption) (*magistrala.RetrieveJWKSRes, error) {
+	return nil, nil
+}
+
 func (repo singleUserAuth) Authorize(ctx context.Context, in *magistrala.AuthorizeReq, opts ...grpc.CallOption) (*magistrala.AuthorizeRes, error) {
 	if repo.id != in.Subject {
 		return &magistrala.AuthorizeRes{Authorized: false}, svcerr.ErrAuthorization

@@ -162,3 +162,7 @@ func (tm *tracingMiddleware) DeleteUserPolicies(ctx context.Context, id string) 
 	defer span.End()
 	return tm.svc.DeleteUserPolicies(ctx, id)
 }
+
+func (tm *tracingMiddleware) RetrieveJWKS(keyID string) (auth.JWKS, error) {
+	return tm.svc.RetrieveJWKS(keyID)
+}
