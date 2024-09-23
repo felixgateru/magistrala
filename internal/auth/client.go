@@ -5,7 +5,12 @@ package auth
 
 import (
 	"context"
+	"crypto/rsa"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"math/big"
+	"net/http"
 	"time"
 
 	"github.com/absmach/magistrala"
@@ -15,6 +20,8 @@ import (
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	"github.com/go-kit/kit/endpoint"
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -23,19 +30,29 @@ import (
 const (
 	authzSvcName = "magistrala.AuthzService"
 	authnSvcName = "magistrala.AuthnService"
+	issuerName   = "magistrala.auth"
+)
+
+var (
+	// errJWTExpiryKey is used to check if the token is expired.
+	errJWTExpiryKey = errors.New(`"exp" not satisfied`)
+	// errInvalidIssuer indicates an invalid issuer value.
+	errInvalidIssuer = errors.New("invalid token issuer value")
+	// ErrValidateJWTToken indicates a failure to validate JWT token.
+	ErrValidateJWTToken = errors.New("failed to validate jwt token")
 )
 
 type authGrpcClient struct {
-	issue        endpoint.Endpoint
-	refresh      endpoint.Endpoint
-	identify     endpoint.Endpoint
-	authorize    endpoint.Endpoint
-	retrieveJWKS endpoint.Endpoint
-	timeout      time.Duration
+	issue     endpoint.Endpoint
+	refresh   endpoint.Endpoint
+	authorize endpoint.Endpoint
+	identify  endpoint.Endpoint
+	timeout   time.Duration
+	jwksURL   string
 }
 
 // NewAuthClient returns new auth gRPC client instance.
-func NewAuthClient(conn *grpc.ClientConn, timeout time.Duration) auth.AuthClient {
+func NewAuthClient(conn *grpc.ClientConn, timeout time.Duration, jwksURL string) auth.AuthClient {
 	return &authGrpcClient{
 		issue: kitgrpc.NewClient(
 			conn,
@@ -61,14 +78,6 @@ func NewAuthClient(conn *grpc.ClientConn, timeout time.Duration) auth.AuthClient
 			decodeIdentifyResponse,
 			magistrala.IdentityRes{},
 		).Endpoint(),
-		retrieveJWKS: kitgrpc.NewClient(
-			conn,
-			authnSvcName,
-			"GetJWKS",
-			encodeRetrieveJWKSRequest,
-			decodeRetrieveJWKSResponse,
-			magistrala.RetrieveJWKSRes{},
-		).Endpoint(),
 		authorize: kitgrpc.NewClient(
 			conn,
 			authzSvcName,
@@ -78,6 +87,7 @@ func NewAuthClient(conn *grpc.ClientConn, timeout time.Duration) auth.AuthClient
 			magistrala.AuthorizeRes{},
 		).Endpoint(),
 		timeout: timeout,
+		jwksURL: jwksURL,
 	}
 }
 
@@ -151,38 +161,6 @@ func decodeIdentifyResponse(_ context.Context, grpcRes interface{}) (interface{}
 	return identityRes{subject: res.GetId(), userID: res.GetUserId(), domainID: res.GetDomainId()}, nil
 }
 
-func (client authGrpcClient) RetrieveJWKS(ctx context.Context, req *magistrala.RetrieveJWKSReq, _ ...grpc.CallOption) (*magistrala.RetrieveJWKSRes, error) {
-	ctx, cancel := context.WithTimeout(ctx, client.timeout)
-	defer cancel()
-
-	res, err := client.retrieveJWKS(ctx, nil)
-	if err != nil {
-		return &magistrala.RetrieveJWKSRes{}, decodeError(err)
-	}
-	return res.(*magistrala.RetrieveJWKSRes), nil
-}
-
-func encodeRetrieveJWKSRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
-	req := grpcReq.(retrieveJWKSReq)
-	return &magistrala.RetrieveJWKSReq{KeyID: req.keyID}, nil
-}
-
-func decodeRetrieveJWKSResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {
-	res := grpcRes.(*magistrala.RetrieveJWKSRes)
-	keys := []mgauth.JWK{}
-	for _, jwk := range res.GetKeys() {
-		keys = append(keys, mgauth.JWK{
-			Kty: jwk.GetKty(),
-			Kid: jwk.GetKid(),
-			N:   jwk.GetN(),
-			E:   jwk.GetE(),
-		})
-	}
-	return retrieveJWKSRes{JWKS: mgauth.JWKS{
-		Keys: keys,
-	}}, nil
-}
-
 func (client authGrpcClient) Authorize(ctx context.Context, req *magistrala.AuthorizeReq, _ ...grpc.CallOption) (r *magistrala.AuthorizeRes, err error) {
 	ctx, cancel := context.WithTimeout(ctx, client.timeout)
 	defer cancel()
@@ -222,6 +200,103 @@ func encodeAuthorizeRequest(_ context.Context, grpcReq interface{}) (interface{}
 		ObjectType:  req.ObjectType,
 		Object:      req.Object,
 	}, nil
+}
+
+func (client authGrpcClient) ParseToken(ctx context.Context, token string) (auth.Session, error) {
+	jwks, err := client.fetchJWKS()
+	if err != nil {
+		return auth.Session{}, err
+	}
+
+	publicKey, err := createPublicKey(jwks.Keys[0])
+	if err != nil {
+		return auth.Session{}, err
+	}
+
+	tkn, err := validateToken(token, publicKey)
+	if err != nil {
+		return auth.Session{}, err
+	}
+
+	res := auth.Session{DomainUserID: tkn.Subject()}
+	pc := tkn.PrivateClaims()
+	if pc["user"] != nil {
+		res.UserID = pc["user"].(string)
+	}
+	if pc["domain"] != nil {
+		res.DomainID = pc["domain"].(string)
+	}
+
+	return res, nil
+
+}
+
+func (client authGrpcClient) fetchJWKS() (mgauth.JWKS, error) {
+	req, err := http.NewRequest("GET", client.jwksURL, nil)
+	if err != nil {
+		return mgauth.JWKS{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return mgauth.JWKS{}, err
+	}
+	defer resp.Body.Close()
+
+	var jwks mgauth.JWKS
+	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+		return mgauth.JWKS{}, err
+	}
+	return jwks, nil
+}
+
+func validateToken(token string, publicKey *rsa.PublicKey) (jwt.Token, error) {
+	tkn, err := jwt.Parse(
+		[]byte(token),
+		jwt.WithValidate(true),
+		jwt.WithKey(jwa.RS256, publicKey),
+	)
+	if err != nil {
+		if errors.Contains(err, errJWTExpiryKey) {
+			return nil, mgauth.ErrExpiry
+		}
+
+		return nil, err
+	}
+	validator := jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) jwt.ValidationError {
+		if t.Issuer() != issuerName {
+			return jwt.NewValidationError(errInvalidIssuer)
+		}
+		return nil
+	})
+	if err := jwt.Validate(tkn, jwt.WithValidator(validator)); err != nil {
+		return nil, errors.Wrap(ErrValidateJWTToken, err)
+	}
+
+	return tkn, nil
+}
+
+func createPublicKey(jwk mgauth.JWK) (*rsa.PublicKey, error) {
+	nBytes, err := base64.RawURLEncoding.DecodeString(jwk.N)
+	if err != nil {
+		return nil, err
+	}
+	eBytes, err := base64.RawURLEncoding.DecodeString(jwk.E)
+	if err != nil {
+		return nil, err
+	}
+
+	n := new(big.Int).SetBytes(nBytes)
+	e := new(big.Int).SetBytes(eBytes)
+
+	publicKey := &rsa.PublicKey{
+		N: n,
+		E: int(e.Int64()),
+	}
+
+	return publicKey, nil
 }
 
 func decodeError(err error) error {

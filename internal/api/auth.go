@@ -25,17 +25,13 @@ func AuthenticateMiddleware(authClient auth.AuthClient) func(http.Handler) http.
 				return
 			}
 
-			resp, err := authClient.Identify(r.Context(), &magistrala.IdentityReq{Token: token})
+			session, err := authClient.ParseToken(r.Context(), token)
 			if err != nil {
 				EncodeError(r.Context(), err, w)
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), SessionKey, auth.Session{
-				DomainUserID: resp.GetId(),
-				UserID:       resp.GetUserId(),
-				DomainID:     resp.GetDomainId(),
-			})
+			ctx := context.WithValue(r.Context(), SessionKey, session)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

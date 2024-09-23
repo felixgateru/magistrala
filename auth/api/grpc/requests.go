@@ -92,7 +92,3 @@ func (req deleteUserPoliciesReq) validate() error {
 
 	return nil
 }
-
-type retrieveJWKSReq struct{
-	keyID string
-}

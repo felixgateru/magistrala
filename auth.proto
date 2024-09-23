@@ -20,7 +20,6 @@ service AuthnService {
   rpc Issue(IssueReq) returns (Token) {}
   rpc Refresh(RefreshReq) returns (Token) {}
   rpc Identify(IdentityReq) returns (IdentityRes) {}
-  rpc RetrieveJWKS(RetrieveJWKSReq) returns (RetrieveJWKSRes) {}
 }
 
 // PolicyService is a service that provides policy CRUD
@@ -57,21 +56,6 @@ message IssueReq {
 message RefreshReq {
   string refresh_token = 1;
   optional string domain_id = 2;
-}
-
-message JWK {
-  string kty = 1; 
-  string kid = 2; 
-  string n = 3;  
-  string e = 4;
-}
-
-message RetrieveJWKSRes {
-  repeated JWK keys = 1;
-}
-
-message RetrieveJWKSReq {
-  string keyID = 1;
 }
 
 message AuthorizeReq {

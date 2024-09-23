@@ -3,10 +3,6 @@
 
 package grpc
 
-import (
-	"github.com/absmach/magistrala/auth"
-)
-
 type identityRes struct {
 	id       string
 	userID   string
@@ -26,8 +22,4 @@ type authorizeRes struct {
 
 type deletePolicyRes struct {
 	deleted bool
-}
-
-type retrieveJWKSRes struct {
-	auth.JWKS
 }

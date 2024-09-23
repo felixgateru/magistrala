@@ -36,7 +36,7 @@ func SetupAuthClient(ctx context.Context, cfg Config) (auth.AuthClient, Handler,
 		return nil, nil, errSvcNotServing
 	}
 
-	return authclient.NewAuthClient(client.Connection(), cfg.Timeout), client, nil
+	return authclient.NewAuthClient(client.Connection(), cfg.Timeout, cfg.JwksURL), client, nil
 }
 
 // SetupPolicyClient loads Policy gRPC configuration and creates a new Policy gRPC client.

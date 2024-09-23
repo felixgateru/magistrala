@@ -72,11 +72,6 @@ func NewAuthnServer(svc auth.Service) magistrala.AuthnServiceServer {
 			decodeIdentifyRequest,
 			encodeIdentifyResponse,
 		),
-		retrieveJWKS: kitgrpc.NewServer(
-			(retrieveJWKSEndpoint(svc)),
-			decodeRetrieveJWKSRequest,
-			encodeRetrieveJWKSResponse,
-		),
 	}
 }
 
@@ -102,14 +97,6 @@ func (s *authnGrpcServer) Identify(ctx context.Context, token *magistrala.Identi
 		return nil, encodeError(err)
 	}
 	return res.(*magistrala.IdentityRes), nil
-}
-
-func (s *authnGrpcServer) RetrieveJWKS(ctx context.Context, req *magistrala.RetrieveJWKSReq) (*magistrala.RetrieveJWKSRes, error) {
-	_, res, err := s.retrieveJWKS.ServeGRPC(ctx, req)
-	if err != nil {
-		return nil, encodeError(err)
-	}
-	return res.(*magistrala.RetrieveJWKSRes), nil
 }
 
 type policyGrpcServer struct {
@@ -167,25 +154,6 @@ func decodeIdentifyRequest(_ context.Context, grpcReq interface{}) (interface{},
 func encodeIdentifyResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {
 	res := grpcRes.(identityRes)
 	return &magistrala.IdentityRes{Id: res.id, UserId: res.userID, DomainId: res.domainID}, nil
-}
-
-func decodeRetrieveJWKSRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
-	req := grpcReq.(*magistrala.RetrieveJWKSReq)
-	return retrieveJWKSReq{keyID: req.GetKeyID()}, nil
-}
-
-func encodeRetrieveJWKSResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {
-	res := grpcRes.(retrieveJWKSRes)
-	keys := []*magistrala.JWK{}
-	for _, key := range res.JWKS.Keys {
-		keys = append(keys, &magistrala.JWK{
-			Kty: key.Kty,
-			Kid: key.Kid,
-			N:   key.N,
-			E:   key.E,
-		})
-	}
-	return &magistrala.RetrieveJWKSRes{Keys: keys}, nil
 }
 
 func decodeAuthorizeRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {

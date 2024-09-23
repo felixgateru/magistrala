@@ -51,8 +51,12 @@ func (repo singleUserAuth) Identify(ctx context.Context, in *magistrala.Identity
 	return &magistrala.IdentityRes{Id: repo.id}, nil
 }
 
-func( repo singleUserAuth) RetrieveJWKS(ctx context.Context, in *magistrala.RetrieveJWKSReq, opts ...grpc.CallOption) (*magistrala.RetrieveJWKSRes, error) {
-	return nil, nil
+func (repo singleUserAuth) ParseToken(ctx context.Context, token string) (authclient.Session, error) {
+	if repo.token != token {
+		return authclient.Session{}, svcerr.ErrAuthentication
+	}
+
+	return authclient.Session{UserID: repo.id}, nil
 }
 
 func (repo singleUserAuth) Authorize(ctx context.Context, in *magistrala.AuthorizeReq, opts ...grpc.CallOption) (*magistrala.AuthorizeRes, error) {

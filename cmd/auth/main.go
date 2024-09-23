@@ -234,8 +234,8 @@ func newService(ctx context.Context, db *sqlx.DB, tracer trace.Tracer, cfg confi
 
 	t := jwt.New([]byte(cfg.SecretKey))
 
-	svc := auth.New(keysRepo, domainsRepo, idProvider, t, pa, policyClient, cfg.AccessDuration, cfg.RefreshDuration, cfg.InvitationDuration)
-	svc, err := events.NewEventStoreMiddleware(ctx, svc, cfg.ESURL)
+	svc := auth.New(keysRepo, domainsRepo, idProvider, tokenizer, pa, policyClient, cfg.AccessDuration, cfg.RefreshDuration, cfg.InvitationDuration)
+	svc, err = events.NewEventStoreMiddleware(ctx, svc, cfg.ESURL)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to init event store middleware : %s", err))
 		return nil
