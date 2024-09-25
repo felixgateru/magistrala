@@ -49,6 +49,7 @@ var (
 	validID  = testsutil.GenerateUUID(&testing.T{})
 	domainID = testsutil.GenerateUUID(&testing.T{})
 	authAddr = fmt.Sprintf("localhost:%d", port)
+	jwksURL  = fmt.Sprintf("http://localhost:%d/jwks", port)
 )
 
 func startGRPCServer(svc auth.Service, port int) {
@@ -66,7 +67,7 @@ func startGRPCServer(svc auth.Service, port int) {
 func TestIssue(t *testing.T) {
 	conn, err := grpc.NewClient(authAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error creating client connection %s", err))
-	grpcClient := client.NewAuthClient(conn, time.Second)
+	grpcClient := client.NewAuthClient(conn, time.Second, jwksURL)
 
 	cases := []struct {
 		desc          string
@@ -135,7 +136,7 @@ func TestIssue(t *testing.T) {
 func TestRefresh(t *testing.T) {
 	conn, err := grpc.NewClient(authAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error creating client connection %s", err))
-	grpcClient := client.NewAuthClient(conn, time.Second)
+	grpcClient := client.NewAuthClient(conn, time.Second, jwksURL)
 
 	cases := []struct {
 		desc          string
@@ -181,7 +182,7 @@ func TestRefresh(t *testing.T) {
 func TestIdentify(t *testing.T) {
 	conn, err := grpc.NewClient(authAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error creating client connection %s", err))
-	grpcClient := client.NewAuthClient(conn, time.Second)
+	grpcClient := client.NewAuthClient(conn, time.Second, jwksURL)
 
 	cases := []struct {
 		desc   string
@@ -225,7 +226,7 @@ func TestIdentify(t *testing.T) {
 func TestAuthorize(t *testing.T) {
 	conn, err := grpc.NewClient(authAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error creating client connection %s", err))
-	grpcClient := client.NewAuthClient(conn, time.Second)
+	grpcClient := client.NewAuthClient(conn, time.Second, jwksURL)
 
 	cases := []struct {
 		desc         string

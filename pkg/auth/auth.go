@@ -36,6 +36,6 @@ type AuthClient interface {
 	// Returns a non-nil error if the `subject` is not authorized.
 	Authorize(ctx context.Context, in *magistrala.AuthorizeReq, opts ...grpc.CallOption) (*magistrala.AuthorizeRes, error)
 
-	// ParseToken parses the token and returns the identity.
+	// ParseToken validates and decodes a token and returns the identity.
 	ParseToken(ctx context.Context, token string) (Session, error)
 }

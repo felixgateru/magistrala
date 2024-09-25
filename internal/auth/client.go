@@ -28,9 +28,10 @@ import (
 )
 
 const (
-	authzSvcName = "magistrala.AuthzService"
-	authnSvcName = "magistrala.AuthnService"
-	issuerName   = "magistrala.auth"
+	authzSvcName  = "magistrala.AuthzService"
+	authnSvcName  = "magistrala.AuthnService"
+	issuerName    = "magistrala.auth"
+	cacheDuration = 5 * time.Minute
 )
 
 var (
@@ -40,6 +41,11 @@ var (
 	errInvalidIssuer = errors.New("invalid token issuer value")
 	// ErrValidateJWTToken indicates a failure to validate JWT token.
 	ErrValidateJWTToken = errors.New("failed to validate jwt token")
+
+	jwksCache = struct {
+		jwks     mgauth.JWKS
+		cachedAt time.Time
+	}{}
 )
 
 type authGrpcClient struct {
@@ -239,6 +245,10 @@ func (client authGrpcClient) fetchJWKS() (mgauth.JWKS, error) {
 	req.Header.Set("Accept", "application/json")
 
 	httpClient := &http.Client{}
+	if time.Since(jwksCache.cachedAt) < cacheDuration && jwksCache.jwks.Keys != nil {
+		return jwksCache.jwks, nil
+	}
+
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return mgauth.JWKS{}, err
@@ -249,6 +259,9 @@ func (client authGrpcClient) fetchJWKS() (mgauth.JWKS, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
 		return mgauth.JWKS{}, err
 	}
+	jwksCache.jwks = jwks
+	jwksCache.cachedAt = time.Now()
+
 	return jwks, nil
 }
 

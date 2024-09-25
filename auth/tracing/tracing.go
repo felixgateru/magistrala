@@ -163,6 +163,6 @@ func (tm *tracingMiddleware) DeleteUserPolicies(ctx context.Context, id string) 
 	return tm.svc.DeleteUserPolicies(ctx, id)
 }
 
-func (tm *tracingMiddleware) RetrieveJWKS(keyID string) (auth.JWKS, error) {
-	return tm.svc.RetrieveJWKS(keyID)
+func (tm *tracingMiddleware) RetrieveJWKS() (auth.JWKS, error) {
+	return tm.svc.RetrieveJWKS()
 }

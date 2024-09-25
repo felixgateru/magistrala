@@ -104,34 +104,6 @@ func (pr PolicyReq) String() string {
 	return string(data)
 }
 
-// KV returns the key-value pair for the given PolicyReq.
-func (pr PolicyReq) KV() (string, string) {
-	var key, val string
-	switch pr.Domain {
-	case "":
-		key = pr.SubjectType + ":" + pr.Subject + ":" + pr.ObjectType + ":" + pr.Object
-	default:
-		key = pr.Domain + ":" + pr.SubjectType + ":" + pr.Subject + ":" + pr.ObjectType + ":" + pr.Object
-	}
-	val = pr.Permission
-
-	return key, val
-}
-
-// KeyForRemoval returns the key for the given PolicyReq. It is used
-// to remove a key from the cache.
-func (pr PolicyReq) KeyForRemoval() string {
-	switch {
-	case pr.Subject != "" && pr.Object == "":
-		return "*" + pr.Subject + "*"
-	case pr.Object != "" && pr.Subject == "":
-		return "*" + pr.Object + "*"
-	default:
-		key, _ := pr.KV()
-		return key
-	}
-}
-
 type PolicyRes struct {
 	Namespace       string
 	Subject         string
