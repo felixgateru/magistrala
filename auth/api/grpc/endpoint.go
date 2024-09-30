@@ -110,4 +110,3 @@ func deleteUserPoliciesEndpoint(svc auth.Service) endpoint.Endpoint {
 		return deletePolicyRes{deleted: true}, nil
 	}
 }
-

@@ -7,7 +7,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/pkg/apiutil"
 	"github.com/absmach/magistrala/pkg/auth"
 )
@@ -25,7 +24,7 @@ func AuthenticateMiddleware(authClient auth.AuthClient) func(http.Handler) http.
 				return
 			}
 
-			session, err := authClient.ParseToken(r.Context(), token)
+			session, err := authClient.IdentifyAccessToken(r.Context(), token)
 			if err != nil {
 				EncodeError(r.Context(), err, w)
 				return

@@ -51,8 +51,8 @@ var (
 type authGrpcClient struct {
 	issue     endpoint.Endpoint
 	refresh   endpoint.Endpoint
-	authorize endpoint.Endpoint
 	identify  endpoint.Endpoint
+	authorize endpoint.Endpoint
 	timeout   time.Duration
 	jwksURL   string
 }
@@ -208,7 +208,7 @@ func encodeAuthorizeRequest(_ context.Context, grpcReq interface{}) (interface{}
 	}, nil
 }
 
-func (client authGrpcClient) ParseToken(ctx context.Context, token string) (auth.Session, error) {
+func (client authGrpcClient) IdentifyAccessToken(ctx context.Context, token string) (auth.Session, error) {
 	jwks, err := client.fetchJWKS()
 	if err != nil {
 		return auth.Session{}, err
@@ -234,7 +234,6 @@ func (client authGrpcClient) ParseToken(ctx context.Context, token string) (auth
 	}
 
 	return res, nil
-
 }
 
 func (client authGrpcClient) fetchJWKS() (mgauth.JWKS, error) {

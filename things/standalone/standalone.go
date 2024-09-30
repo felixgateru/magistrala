@@ -51,7 +51,7 @@ func (repo singleUserAuth) Identify(ctx context.Context, in *magistrala.Identity
 	return &magistrala.IdentityRes{Id: repo.id}, nil
 }
 
-func (repo singleUserAuth) ParseToken(ctx context.Context, token string) (authclient.Session, error) {
+func (repo singleUserAuth) IdentifyAccessToken(ctx context.Context, token string) (authclient.Session, error) {
 	if repo.token != token {
 		return authclient.Session{}, svcerr.ErrAuthentication
 	}

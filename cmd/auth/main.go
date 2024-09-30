@@ -27,6 +27,7 @@ import (
 	apostgres "github.com/absmach/magistrala/auth/postgres"
 	"github.com/absmach/magistrala/auth/spicedb"
 	"github.com/absmach/magistrala/auth/tracing"
+	redisclient "github.com/absmach/magistrala/internal/clients/redis"
 	mgpolicies "github.com/absmach/magistrala/internal/policies"
 	mglog "github.com/absmach/magistrala/logger"
 	"github.com/absmach/magistrala/pkg/jaeger"
@@ -232,9 +233,12 @@ func newService(ctx context.Context, db *sqlx.DB, tracer trace.Tracer, cfg confi
 	pa := spicedb.NewPolicyAgent(spicedbClient, logger)
 	idProvider := uuid.New()
 
-	policyClient := mgpolicies.NewPolicyClient(spicedbClient, logger)
-
-	t := jwt.New([]byte(cfg.SecretKey))
+	privateKey, err := loadPrivateKey(cfg.PrivateKeyPath)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to load private key : %s", err))
+		return nil
+	}
+	tokenizer := jwt.New(privateKey, tokensRepo, tokensCache)
 
 	svc := auth.New(keysRepo, domainsRepo, idProvider, tokenizer, pa, policyClient, cfg.AccessDuration, cfg.RefreshDuration, cfg.InvitationDuration)
 	svc, err = events.NewEventStoreMiddleware(ctx, svc, cfg.ESURL)

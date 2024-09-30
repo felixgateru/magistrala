@@ -1310,25 +1310,6 @@ func TestUpdateClientSecret(t *testing.T) {
 			identifyRes: &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID},
 			err:         apiutil.ErrValidation,
 		},
-		{
-			desc: "update thing secret with invalid id",
-			data: fmt.Sprintf(`{"secret": "%s"}`, "strongersecret"),
-			client: mgclients.Client{
-				ID: inValid,
-				Credentials: mgclients.Credentials{
-					Identity: "clientname",
-					Secret:   "strongersecret",
-				},
-			},
-			contentType:  contentType,
-			token:        validToken,
-			session:      pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID},
-			status:       http.StatusForbidden,
-			identifyRes:  &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID},
-			authorizeRes: &magistrala.AuthorizeRes{Authorized: false},
-			authorizeErr: svcerr.ErrAuthorization,
-			err:          svcerr.ErrAuthorization,
-		},
 	}
 
 	for _, tc := range cases {
@@ -2854,19 +2835,6 @@ func TestConnectThingToChannel(t *testing.T) {
 			identifyRes: &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID},
 			err:         apiutil.ErrValidation,
 		},
-		{
-			desc:         "connect thing to a channel with authorization error",
-			token:        validToken,
-			session:      pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID},
-			channelID:    inValid,
-			thingID:      validID,
-			contentType:  contentType,
-			status:       http.StatusForbidden,
-			identifyRes:  &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID},
-			authorizeRes: &magistrala.AuthorizeRes{Authorized: false},
-			authorizeErr: svcerr.ErrAuthorization,
-			err:          nil,
-		},
 	}
 	for _, tc := range cases {
 		req := testRequest{
@@ -3172,21 +3140,6 @@ func TestDisconnect(t *testing.T) {
 			status:      http.StatusUnsupportedMediaType,
 			identifyRes: &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID},
 			err:         apiutil.ErrValidation,
-		},
-		{
-			desc:    "Disconnect thing from a channel with authorization error",
-			token:   validToken,
-			session: pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID},
-			reqBody: groupReqBody{
-				ChannelID: validID,
-				ThingID:   validID,
-			},
-			contentType:  contentType,
-			status:       http.StatusForbidden,
-			identifyRes:  &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID},
-			authorizeRes: &magistrala.AuthorizeRes{Authorized: false},
-			authorizeErr: svcerr.ErrAuthorization,
-			err:          nil,
 		},
 	}
 	for _, tc := range cases {

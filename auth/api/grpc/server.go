@@ -48,10 +48,9 @@ func (s *authzGrpcServer) Authorize(ctx context.Context, req *magistrala.Authori
 
 type authnGrpcServer struct {
 	magistrala.UnimplementedAuthnServiceServer
-	issue        kitgrpc.Handler
-	refresh      kitgrpc.Handler
-	identify     kitgrpc.Handler
-	retrieveJWKS kitgrpc.Handler
+	issue    kitgrpc.Handler
+	refresh  kitgrpc.Handler
+	identify kitgrpc.Handler
 }
 
 // NewAuthnServer returns new AuthnServiceServer instance.

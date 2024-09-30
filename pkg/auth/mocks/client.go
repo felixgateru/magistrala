@@ -95,6 +95,34 @@ func (_m *AuthClient) Identify(ctx context.Context, in *magistrala.IdentityReq, 
 	return r0, r1
 }
 
+// IdentifyAccessToken provides a mock function with given fields: ctx, token
+func (_m *AuthClient) IdentifyAccessToken(ctx context.Context, token string) (auth.Session, error) {
+	ret := _m.Called(ctx, token)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IdentifyAccessToken")
+	}
+
+	var r0 auth.Session
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (auth.Session, error)); ok {
+		return rf(ctx, token)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) auth.Session); ok {
+		r0 = rf(ctx, token)
+	} else {
+		r0 = ret.Get(0).(auth.Session)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, token)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // Issue provides a mock function with given fields: ctx, in, opts
 func (_m *AuthClient) Issue(ctx context.Context, in *magistrala.IssueReq, opts ...grpc.CallOption) (*magistrala.Token, error) {
 	_va := make([]interface{}, len(opts))
@@ -125,34 +153,6 @@ func (_m *AuthClient) Issue(ctx context.Context, in *magistrala.IssueReq, opts .
 
 	if rf, ok := ret.Get(1).(func(context.Context, *magistrala.IssueReq, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// ParseToken provides a mock function with given fields: ctx, token
-func (_m *AuthClient) ParseToken(ctx context.Context, token string) (auth.Session, error) {
-	ret := _m.Called(ctx, token)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ParseToken")
-	}
-
-	var r0 auth.Session
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (auth.Session, error)); ok {
-		return rf(ctx, token)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) auth.Session); ok {
-		r0 = rf(ctx, token)
-	} else {
-		r0 = ret.Get(0).(auth.Session)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, token)
 	} else {
 		r1 = ret.Error(1)
 	}
