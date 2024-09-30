@@ -5,6 +5,9 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"log"
 	"log/slog"
@@ -224,10 +227,9 @@ func newService(ctx context.Context, db *sqlx.DB, tracer trace.Tracer, cfg confi
 	keysRepo := apostgres.New(database)
 	tokensRepo := apostgres.NewTokensRepository(database)
 	domainsRepo := apostgres.NewDomainRepository(database)
-	policiesCache := cache.NewPoliciesCache(cacheClient, keyDuration)
 	tokensCache := cache.NewTokensCache(cacheClient, keyDuration)
-
-	pa := spicedb.NewPolicyAgent(spicedbClient, logger, policiesCache)
+	policyClient := mgpolicies.NewPolicyClient(spicedbClient, logger)
+	pa := spicedb.NewPolicyAgent(spicedbClient, logger)
 	idProvider := uuid.New()
 
 	policyClient := mgpolicies.NewPolicyClient(spicedbClient, logger)
@@ -246,4 +248,25 @@ func newService(ctx context.Context, db *sqlx.DB, tracer trace.Tracer, cfg confi
 	svc = tracing.New(svc, tracer)
 
 	return svc
+}
+
+func loadPrivateKey(privateKeyPath string) (*rsa.PrivateKey, error) {
+	privKeyBytes, err := os.ReadFile(privateKeyPath)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(privKeyBytes)
+	if block == nil || block.Type != "PRIVATE KEY" {
+		return nil, err
+	}
+	privKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	rsaKey, ok := privKey.(*rsa.PrivateKey)
+	if !ok {
+		return nil, err
+	}
+
+	return rsaKey, nil
 }
