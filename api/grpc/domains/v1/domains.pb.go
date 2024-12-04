@@ -111,6 +111,96 @@ func (x *DeleteUserReq) GetId() string {
 	return ""
 }
 
+type RetrieveDomainStatusReq struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+}
+
+func (x *RetrieveDomainStatusReq) Reset() {
+	*x = RetrieveDomainStatusReq{}
+	mi := &file_domains_v1_domains_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrieveDomainStatusReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrieveDomainStatusReq) ProtoMessage() {}
+
+func (x *RetrieveDomainStatusReq) ProtoReflect() protoreflect.Message {
+	mi := &file_domains_v1_domains_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrieveDomainStatusReq.ProtoReflect.Descriptor instead.
+func (*RetrieveDomainStatusReq) Descriptor() ([]byte, []int) {
+	return file_domains_v1_domains_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *RetrieveDomainStatusReq) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type RetrieveDomainStatusRes struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Status string `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+}
+
+func (x *RetrieveDomainStatusRes) Reset() {
+	*x = RetrieveDomainStatusRes{}
+	mi := &file_domains_v1_domains_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrieveDomainStatusRes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrieveDomainStatusRes) ProtoMessage() {}
+
+func (x *RetrieveDomainStatusRes) ProtoReflect() protoreflect.Message {
+	mi := &file_domains_v1_domains_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrieveDomainStatusRes.ProtoReflect.Descriptor instead.
+func (*RetrieveDomainStatusRes) Descriptor() ([]byte, []int) {
+	return file_domains_v1_domains_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *RetrieveDomainStatusRes) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
 var File_domains_v1_domains_proto protoreflect.FileDescriptor
 
 var file_domains_v1_domains_proto_rawDesc = []byte{
@@ -145,16 +235,20 @@ func file_domains_v1_domains_proto_rawDescGZIP() []byte {
 	return file_domains_v1_domains_proto_rawDescData
 }
 
-var file_domains_v1_domains_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_domains_v1_domains_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_domains_v1_domains_proto_goTypes = []any{
-	(*DeleteUserRes)(nil), // 0: domains.v1.DeleteUserRes
-	(*DeleteUserReq)(nil), // 1: domains.v1.DeleteUserReq
+	(*DeleteUserRes)(nil),           // 0: domains.v1.DeleteUserRes
+	(*DeleteUserReq)(nil),           // 1: domains.v1.DeleteUserReq
+	(*RetrieveDomainStatusReq)(nil), // 2: domains.v1.RetrieveDomainStatusReq
+	(*RetrieveDomainStatusRes)(nil), // 3: domains.v1.RetrieveDomainStatusRes
 }
 var file_domains_v1_domains_proto_depIdxs = []int32{
 	1, // 0: domains.v1.DomainsService.DeleteUserFromDomains:input_type -> domains.v1.DeleteUserReq
-	0, // 1: domains.v1.DomainsService.DeleteUserFromDomains:output_type -> domains.v1.DeleteUserRes
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	2, // 1: domains.v1.DomainsService.RetrieveDomainStatus:input_type -> domains.v1.RetrieveDomainStatusReq
+	0, // 2: domains.v1.DomainsService.DeleteUserFromDomains:output_type -> domains.v1.DeleteUserRes
+	3, // 3: domains.v1.DomainsService.RetrieveDomainStatus:output_type -> domains.v1.RetrieveDomainStatusRes
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -171,7 +265,7 @@ func file_domains_v1_domains_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_domains_v1_domains_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
