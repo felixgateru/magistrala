@@ -503,4 +503,3 @@ func TestDisableDomainCmd(t *testing.T) {
 		})
 	}
 }
-

@@ -22,6 +22,7 @@ import (
 	"github.com/absmach/supermq/pkg/errors"
 	svcerr "github.com/absmach/supermq/pkg/errors/service"
 	oauth2mocks "github.com/absmach/supermq/pkg/oauth2/mocks"
+	"github.com/absmach/supermq/pkg/roles"
 	sdk "github.com/absmach/supermq/pkg/sdk"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -41,29 +42,13 @@ func setupGroups() (*httptest.Server, *mocks.Service, *authnmocks.Authentication
 	logger := smqlog.NewMock()
 	mux := chi.NewRouter()
 	provider := new(oauth2mocks.Provider)
-	provider.On("Name").Return("test")
+	provider.On("Name").Return(roleName)
 	authn := new(authnmocks.Authentication)
 	httpapi.MakeHandler(svc, authn, mux, logger, "")
 
 	return httptest.NewServer(mux), svc, authn
 }
 
-func generateTestGroup(t *testing.T) sdk.Group {
-	createdAt, err := time.Parse(time.RFC3339, "2023-03-03T00:00:00Z")
-	assert.Nil(t, err, fmt.Sprintf("unexpected error %s", err))
-	updatedAt := createdAt
-	gr := sdk.Group{
-		ID:          testsutil.GenerateUUID(t),
-		DomainID:    testsutil.GenerateUUID(t),
-		Name:        gName,
-		Description: description,
-		Metadata:    sdk.Metadata{"role": "client"},
-		CreatedAt:   createdAt,
-		UpdatedAt:   updatedAt,
-		Status:      groups.EnabledStatus.String(),
-	}
-	return gr
-}
 func TestCreateGroup(t *testing.T) {
 	ts, gsvc, auth := setupGroups()
 	defer ts.Close()
@@ -2009,4 +1994,1635 @@ func TestHierarchy(t *testing.T) {
 			authCall.Unset()
 		})
 	}
+}
+
+func TestCreateGroupRole(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	rReq := sdk.RoleReq{
+		RoleName:        roleName,
+		OptionalActions: []string{"create", "update"},
+		OptionalMembers: []string{testsutil.GenerateUUID(t), testsutil.GenerateUUID(t)},
+	}
+	userID := testsutil.GenerateUUID(t)
+	groupID := testsutil.GenerateUUID(t)
+	now := time.Now().UTC()
+	role := roles.Role{
+		ID:        testsutil.GenerateUUID(t),
+		Name:      rReq.RoleName,
+		EntityID:  groupID,
+		CreatedBy: userID,
+		CreatedAt: now,
+	}
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		roleReq         sdk.RoleReq
+		svcRes          roles.Role
+		svcErr          error
+		authenticateErr error
+		response        sdk.Role
+		err             errors.SDKError
+	}{
+		{
+			desc:     "create group role successfully",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleReq:  rReq,
+			svcRes:   role,
+			svcErr:   nil,
+			response: convertRole(role),
+			err:      nil,
+		},
+		{
+			desc:            "create group role with invalid token",
+			token:           invalidToken,
+			domainID:        domainID,
+			groupID:         groupID,
+			roleReq:         rReq,
+			svcRes:          roles.Role{},
+			authenticateErr: svcerr.ErrAuthentication,
+			response:        sdk.Role{},
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "create group role with empty token",
+			token:    "",
+			domainID: domainID,
+			groupID:  groupID,
+			roleReq:  rReq,
+			svcRes:   roles.Role{},
+			response: sdk.Role{},
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "create group role with invalid group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  testsutil.GenerateUUID(t),
+			roleReq:  rReq,
+			svcRes:   roles.Role{},
+			svcErr:   svcerr.ErrAuthorization,
+			response: sdk.Role{},
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "create group role with empty group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  "",
+			roleReq:  rReq,
+			svcRes:   roles.Role{},
+			svcErr:   nil,
+			response: sdk.Role{},
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrInvalidIDFormat), http.StatusBadRequest),
+		},
+		{
+			desc:     "create group role with empty role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleReq: sdk.RoleReq{
+				RoleName:        "",
+				OptionalActions: []string{"create", "update"},
+				OptionalMembers: []string{testsutil.GenerateUUID(t), testsutil.GenerateUUID(t)},
+			},
+			svcRes:   roles.Role{},
+			svcErr:   nil,
+			response: sdk.Role{},
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingRoleName), http.StatusBadRequest),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("AddRole", mock.Anything, tc.session, tc.groupID, tc.roleReq.RoleName, tc.roleReq.OptionalActions, tc.roleReq.OptionalMembers).Return(tc.svcRes, tc.svcErr)
+			resp, err := mgsdk.CreateGroupRole(tc.groupID, tc.domainID, tc.roleReq, tc.token)
+			assert.Equal(t, tc.err, err)
+			assert.Equal(t, tc.response, resp)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "AddRole", mock.Anything, tc.session, tc.groupID, tc.roleReq.RoleName, tc.roleReq.OptionalActions, tc.roleReq.OptionalMembers)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestListGroupRoles(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	groupID := testsutil.GenerateUUID(t)
+	role := roles.Role{
+		ID:        testsutil.GenerateUUID(t),
+		Name:      roleName,
+		EntityID:  groupID,
+		CreatedBy: testsutil.GenerateUUID(t),
+		CreatedAt: time.Now().UTC(),
+	}
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		pageMeta        sdk.PageMetadata
+		svcRes          roles.RolePage
+		svcErr          error
+		authenticateErr error
+		response        sdk.RolesPage
+		err             errors.SDKError
+	}{
+		{
+			desc:     "list group roles successfully",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			pageMeta: sdk.PageMetadata{
+				Offset: 0,
+				Limit:  10,
+			},
+			svcRes: roles.RolePage{
+				Total:  1,
+				Offset: 0,
+				Limit:  10,
+				Roles:  []roles.Role{role},
+			},
+			svcErr: nil,
+			response: sdk.RolesPage{
+				Total:  1,
+				Offset: 0,
+				Limit:  10,
+				Roles:  []sdk.Role{convertRole(role)},
+			},
+			err: nil,
+		},
+		{
+			desc:     "list group roles with invalid token",
+			token:    invalidToken,
+			domainID: domainID,
+			groupID:  groupID,
+			pageMeta: sdk.PageMetadata{
+				Offset: 0,
+				Limit:  10,
+			},
+			svcRes:          roles.RolePage{},
+			authenticateErr: svcerr.ErrAuthentication,
+			response:        sdk.RolesPage{},
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "list group roles with empty token",
+			token:    "",
+			domainID: domainID,
+			groupID:  groupID,
+			pageMeta: sdk.PageMetadata{
+				Offset: 0,
+				Limit:  10,
+			},
+			svcRes:   roles.RolePage{},
+			response: sdk.RolesPage{},
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "list group roles with invalid group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  testsutil.GenerateUUID(t),
+			pageMeta: sdk.PageMetadata{
+				Offset: 0,
+				Limit:  10,
+			},
+			svcRes:   roles.RolePage{},
+			svcErr:   svcerr.ErrAuthorization,
+			response: sdk.RolesPage{},
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "list group roles with empty group id",
+			token:    validToken,
+			domainID: domainID,
+			pageMeta: sdk.PageMetadata{
+				Offset: 0,
+				Limit:  10,
+			},
+			groupID:  "",
+			svcRes:   roles.RolePage{},
+			svcErr:   nil,
+			response: sdk.RolesPage{},
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("RetrieveAllRoles", mock.Anything, tc.session, tc.groupID, tc.pageMeta.Limit, tc.pageMeta.Offset).Return(tc.svcRes, tc.svcErr)
+			resp, err := mgsdk.GroupRoles(tc.groupID, tc.domainID, tc.pageMeta, tc.token)
+			assert.Equal(t, tc.err, err)
+			assert.Equal(t, tc.response, resp)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "RetrieveAllRoles", mock.Anything, tc.session, tc.groupID, tc.pageMeta.Limit, tc.pageMeta.Offset)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestViewGroupRole(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	groupID := testsutil.GenerateUUID(t)
+	role := roles.Role{
+		ID:        testsutil.GenerateUUID(t),
+		Name:      roleName,
+		EntityID:  groupID,
+		CreatedBy: testsutil.GenerateUUID(t),
+		CreatedAt: time.Now().UTC(),
+	}
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		roleName        string
+		svcRes          roles.Role
+		svcErr          error
+		authenticateErr error
+		response        sdk.Role
+		err             errors.SDKError
+	}{
+		{
+			desc:     "view group role successfully",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: role.Name,
+			svcRes:   role,
+			svcErr:   nil,
+			response: convertRole(role),
+			err:      nil,
+		},
+		{
+			desc:            "view group role with invalid token",
+			token:           invalidToken,
+			domainID:        domainID,
+			groupID:         groupID,
+			roleName:        role.Name,
+			svcRes:          roles.Role{},
+			authenticateErr: svcerr.ErrAuthentication,
+			response:        sdk.Role{},
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "view group role with empty token",
+			token:    "",
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: role.Name,
+			svcRes:   roles.Role{},
+			response: sdk.Role{},
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "view group role with invalid group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  testsutil.GenerateUUID(t),
+			roleName: role.Name,
+			svcRes:   roles.Role{},
+			svcErr:   svcerr.ErrAuthorization,
+			response: sdk.Role{},
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "view group role with empty group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  "",
+			roleName: role.Name,
+			svcRes:   roles.Role{},
+			svcErr:   nil,
+			response: sdk.Role{},
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
+		},
+		{
+			desc:     "view group role with invalid role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: invalid,
+			svcRes:   roles.Role{},
+			svcErr:   svcerr.ErrAuthorization,
+			response: sdk.Role{},
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("RetrieveRole", mock.Anything, tc.session, tc.groupID, tc.roleName).Return(tc.svcRes, tc.svcErr)
+			resp, err := mgsdk.GroupRole(tc.groupID, tc.roleName, tc.domainID, tc.token)
+			assert.Equal(t, tc.err, err)
+			assert.Equal(t, tc.response, resp)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "RetrieveRole", mock.Anything, tc.session, tc.groupID, tc.roleName)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestUpdateGroupRole(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	groupID := testsutil.GenerateUUID(t)
+	roleName := roleName
+	newRoleName := "newTest"
+	userID := testsutil.GenerateUUID(t)
+	createdAt := time.Now().UTC().Add(-time.Hour)
+	role := roles.Role{
+		ID:        testsutil.GenerateUUID(t),
+		Name:      newRoleName,
+		EntityID:  groupID,
+		CreatedBy: userID,
+		CreatedAt: createdAt,
+		UpdatedBy: userID,
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		roleName        string
+		newRoleName     string
+		svcRes          roles.Role
+		svcErr          error
+		authenticateErr error
+		response        sdk.Role
+		err             errors.SDKError
+	}{
+		{
+			desc:        "update group role successfully",
+			token:       validToken,
+			domainID:    domainID,
+			groupID:     groupID,
+			roleName:    roleName,
+			newRoleName: newRoleName,
+			svcRes:      role,
+			svcErr:      nil,
+			response:    convertRole(role),
+			err:         nil,
+		},
+		{
+			desc:            "update group role with invalid token",
+			token:           invalidToken,
+			domainID:        domainID,
+			groupID:         groupID,
+			roleName:        roleName,
+			newRoleName:     newRoleName,
+			svcRes:          roles.Role{},
+			authenticateErr: svcerr.ErrAuthentication,
+			response:        sdk.Role{},
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:        "update group role with empty token",
+			token:       "",
+			domainID:    domainID,
+			groupID:     groupID,
+			roleName:    roleName,
+			newRoleName: newRoleName,
+			svcRes:      roles.Role{},
+			response:    sdk.Role{},
+			err:         errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:        "update group role with invalid group id",
+			token:       validToken,
+			domainID:    domainID,
+			groupID:     testsutil.GenerateUUID(t),
+			roleName:    roleName,
+			newRoleName: newRoleName,
+			svcRes:      roles.Role{},
+			svcErr:      svcerr.ErrAuthorization,
+			response:    sdk.Role{},
+			err:         errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:        "update group role with empty group id",
+			token:       validToken,
+			domainID:    domainID,
+			groupID:     "",
+			roleName:    roleName,
+			newRoleName: newRoleName,
+			svcRes:      roles.Role{},
+			svcErr:      nil,
+			response:    sdk.Role{},
+			err:         errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("UpdateRoleName", mock.Anything, tc.session, tc.groupID, tc.roleName, tc.newRoleName).Return(tc.svcRes, tc.svcErr)
+			resp, err := mgsdk.UpdateGroupRole(tc.groupID, tc.roleName, tc.newRoleName, tc.domainID, tc.token)
+			assert.Equal(t, tc.err, err)
+			assert.Equal(t, tc.response, resp)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "UpdateRoleName", mock.Anything, tc.session, tc.groupID, tc.roleName, tc.newRoleName)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestDeleteGroupRole(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	roleName := roleName
+	groupID := testsutil.GenerateUUID(t)
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		roleName        string
+		svcErr          error
+		authenticateErr error
+		err             errors.SDKError
+	}{
+		{
+			desc:     "delete group role successfully",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			svcErr:   nil,
+			err:      nil,
+		},
+		{
+			desc:            "delete group role with invalid token",
+			token:           invalidToken,
+			domainID:        domainID,
+			groupID:         groupID,
+			roleName:        roleName,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "delete group role with empty token",
+			token:    "",
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "delete group role with invalid group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  testsutil.GenerateUUID(t),
+			roleName: roleName,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "delete group role with empty group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  "",
+			roleName: roleName,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
+		},
+		{
+			desc:     "delete group role with invalid role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: invalid,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("RemoveRole", mock.Anything, tc.session, tc.groupID, tc.roleName).Return(tc.svcErr)
+			err := mgsdk.DeleteGroupRole(tc.groupID, tc.roleName, tc.domainID, tc.token)
+			assert.Equal(t, tc.err, err)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "RemoveRole", mock.Anything, tc.session, tc.groupID, tc.roleName)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestAddGroupRoleActions(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	roleName := roleName
+	actions := []string{"create", "update"}
+	groupID := testsutil.GenerateUUID(t)
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		roleName        string
+		actions         []string
+		svcRes          []string
+		svcErr          error
+		authenticateErr error
+		response        []string
+		err             errors.SDKError
+	}{
+		{
+			desc:     "add group role actions successfully",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			actions:  actions,
+			svcRes:   actions,
+			svcErr:   nil,
+			response: actions,
+			err:      nil,
+		},
+		{
+			desc:            "add group role actions with invalid token",
+			token:           invalidToken,
+			domainID:        domainID,
+			groupID:         groupID,
+			roleName:        roleName,
+			actions:         actions,
+			authenticateErr: svcerr.ErrAuthentication,
+			response:        []string{},
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "add group role actions with empty token",
+			token:    "",
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			actions:  actions,
+			response: []string{},
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "add group role actions with invalid group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  testsutil.GenerateUUID(t),
+			roleName: roleName,
+			actions:  actions,
+			svcErr:   svcerr.ErrAuthorization,
+			response: []string{},
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "add group role actions with empty group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  "",
+			roleName: roleName,
+			actions:  actions,
+			response: []string{},
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
+		},
+		{
+			desc:     "add group role actions with invalid role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: invalid,
+			actions:  actions,
+			svcErr:   svcerr.ErrAuthorization,
+			response: []string{},
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "add group role actions with empty actions",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			actions:  []string{},
+			svcErr:   nil,
+			response: []string{},
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingPolicyEntityType), http.StatusBadRequest),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("RoleAddActions", mock.Anything, tc.session, tc.groupID, tc.roleName, tc.actions).Return(tc.svcRes, tc.svcErr)
+			resp, err := mgsdk.AddGroupRoleActions(tc.groupID, tc.roleName, tc.domainID, tc.actions, tc.token)
+			assert.Equal(t, tc.err, err)
+			assert.Equal(t, tc.response, resp)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "RoleAddActions", mock.Anything, tc.session, tc.groupID, tc.roleName, tc.actions)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestListGroupRoleActions(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	roleName := roleName
+	actions := []string{"create", "update"}
+	groupID := testsutil.GenerateUUID(t)
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		roleName        string
+		svcRes          []string
+		svcErr          error
+		authenticateErr error
+		response        []string
+		err             errors.SDKError
+	}{
+		{
+			desc:     "list group role actions successfully",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			svcRes:   actions,
+			svcErr:   nil,
+			response: actions,
+			err:      nil,
+		},
+		{
+			desc:            "list group role actions with invalid token",
+			token:           invalidToken,
+			domainID:        domainID,
+			groupID:         groupID,
+			roleName:        roleName,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "list group role actions with empty token",
+			token:    "",
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "list group role actions with invalid group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  testsutil.GenerateUUID(t),
+			roleName: roleName,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "list group role actions with empty group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  "",
+			roleName: roleName,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
+		},
+		{
+			desc:     "list group role actions with invalid role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: invalid,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "list group role actions with empty role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: "",
+			svcErr:   nil,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingRoleName), http.StatusBadRequest),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("RoleListActions", mock.Anything, tc.session, tc.groupID, tc.roleName).Return(tc.svcRes, tc.svcErr)
+			resp, err := mgsdk.GroupRoleActions(tc.groupID, tc.roleName, tc.domainID, tc.token)
+			assert.Equal(t, tc.err, err)
+			assert.Equal(t, tc.response, resp)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "RoleListActions", mock.Anything, tc.session, tc.groupID, tc.roleName)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestRemoveGroupRoleActions(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	roleName := roleName
+	actions := []string{"create", "update"}
+	groupID := testsutil.GenerateUUID(t)
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		roleName        string
+		actions         []string
+		svcErr          error
+		authenticateErr error
+		err             errors.SDKError
+	}{
+		{
+			desc:     "remove group role actions successfully",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			actions:  actions,
+			svcErr:   nil,
+			err:      nil,
+		},
+		{
+			desc:            "remove group role actions with invalid token",
+			token:           invalidToken,
+			domainID:        domainID,
+			groupID:         groupID,
+			roleName:        roleName,
+			actions:         actions,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "remove group role actions with empty token",
+			token:    "",
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			actions:  actions,
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "remove group role actions with invalid group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  testsutil.GenerateUUID(t),
+			roleName: roleName,
+			actions:  actions,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "remove group role actions with empty group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  "",
+			roleName: roleName,
+			actions:  actions,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
+		},
+		{
+			desc:     "remove group role actions with invalid role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: invalid,
+			actions:  actions,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "remove group role actions with empty actions",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			actions:  []string{},
+			svcErr:   nil,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingPolicyEntityType), http.StatusBadRequest),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("RoleRemoveActions", mock.Anything, tc.session, tc.groupID, tc.roleName, tc.actions).Return(tc.svcErr)
+			err := mgsdk.RemoveGroupRoleActions(tc.groupID, tc.roleName, tc.domainID, tc.actions, tc.token)
+			assert.Equal(t, tc.err, err)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "RoleRemoveActions", mock.Anything, tc.session, tc.groupID, tc.roleName, tc.actions)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestRemoveAllGroupRoleActions(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	roleName := roleName
+	groupID := testsutil.GenerateUUID(t)
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		roleName        string
+		svcErr          error
+		authenticateErr error
+		err             errors.SDKError
+	}{
+		{
+			desc:     "remove all group role actions successfully",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			svcErr:   nil,
+			err:      nil,
+		},
+		{
+			desc:            "remove all group role actions with invalid token",
+			token:           invalidToken,
+			domainID:        domainID,
+			groupID:         groupID,
+			roleName:        roleName,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "remove all group role actions with empty token",
+			token:    "",
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "remove all group role actions with invalid group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  testsutil.GenerateUUID(t),
+			roleName: roleName,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "remove all group role actions with empty group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  "",
+			roleName: roleName,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
+		},
+		{
+			desc:     "remove all group role actions with invalid role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: invalid,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "remove all group role actions with empty role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: "",
+			svcErr:   nil,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingRoleName), http.StatusBadRequest),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("RoleRemoveAllActions", mock.Anything, tc.session, tc.groupID, tc.roleName).Return(tc.svcErr)
+			err := mgsdk.RemoveAllGroupRoleActions(tc.groupID, tc.roleName, tc.domainID, tc.token)
+			assert.Equal(t, tc.err, err)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "RoleRemoveAllActions", mock.Anything, tc.session, tc.groupID, tc.roleName)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestAddGroupRoleMembers(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	roleName := roleName
+	members := []string{"user1", "user2"}
+	groupID := testsutil.GenerateUUID(t)
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		roleName        string
+		members         []string
+		svcRes          []string
+		svcErr          error
+		authenticateErr error
+		response        []string
+		err             errors.SDKError
+	}{
+		{
+			desc:     "add group role members successfully",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			members:  members,
+			svcRes:   members,
+			svcErr:   nil,
+			response: members,
+			err:      nil,
+		},
+		{
+			desc:            "add group role members with invalid token",
+			token:           invalidToken,
+			domainID:        domainID,
+			groupID:         groupID,
+			roleName:        roleName,
+			members:         members,
+			authenticateErr: svcerr.ErrAuthentication,
+			response:        []string{},
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "add group role members with empty token",
+			token:    "",
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			members:  members,
+			response: []string{},
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "add group role members with invalid group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  testsutil.GenerateUUID(t),
+			roleName: roleName,
+			members:  members,
+			svcErr:   svcerr.ErrAuthorization,
+			response: []string{},
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "add group role members with empty group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  "",
+			roleName: roleName,
+			members:  members,
+			response: []string{},
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
+		},
+		{
+			desc:     "add group role members with invalid role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: invalid,
+			members:  members,
+			svcErr:   svcerr.ErrAuthorization,
+			response: []string{},
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "add group role members with empty members",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			members:  []string{},
+			svcErr:   nil,
+			response: []string{},
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingRoleMembers), http.StatusBadRequest),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("RoleAddMembers", mock.Anything, tc.session, tc.groupID, tc.roleName, tc.members).Return(tc.svcRes, tc.svcErr)
+			resp, err := mgsdk.AddGroupRoleMembers(tc.groupID, tc.roleName, tc.domainID, tc.members, tc.token)
+			assert.Equal(t, tc.err, err)
+			assert.Equal(t, tc.response, resp)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "RoleAddMembers", mock.Anything, tc.session, tc.groupID, tc.roleName, tc.members)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestListGroupRoleMembers(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	roleName := roleName
+	members := []string{"user1", "user2"}
+	groupID := testsutil.GenerateUUID(t)
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		roleName        string
+		pageMeta        sdk.PageMetadata
+		svcRes          roles.MembersPage
+		svcErr          error
+		authenticateErr error
+		response        sdk.RoleMembersPage
+		err             errors.SDKError
+	}{
+		{
+			desc:     "list group role members successfully",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			pageMeta: sdk.PageMetadata{
+				Offset: 0,
+				Limit:  5,
+			},
+			roleName: roleName,
+			svcRes: roles.MembersPage{
+				Total:   2,
+				Offset:  0,
+				Limit:   5,
+				Members: members,
+			},
+			svcErr: nil,
+			response: sdk.RoleMembersPage{
+				Total:   2,
+				Offset:  0,
+				Limit:   5,
+				Members: members,
+			},
+			err: nil,
+		},
+		{
+			desc:     "list group role members with invalid token",
+			token:    invalidToken,
+			domainID: domainID,
+			groupID:  groupID,
+			pageMeta: sdk.PageMetadata{
+				Offset: 0,
+				Limit:  5,
+			},
+			roleName:        roleName,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "list group role members with empty token",
+			token:    "",
+			domainID: domainID,
+			groupID:  groupID,
+			pageMeta: sdk.PageMetadata{
+				Offset: 0,
+				Limit:  5,
+			},
+			roleName: roleName,
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "list group role members with invalid group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  testsutil.GenerateUUID(t),
+			pageMeta: sdk.PageMetadata{
+				Offset: 0,
+				Limit:  5,
+			},
+			roleName: roleName,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "list group role members with empty group id",
+			token:    validToken,
+			domainID: domainID,
+			pageMeta: sdk.PageMetadata{
+				Offset: 0,
+				Limit:  5,
+			},
+			groupID:  "",
+			roleName: roleName,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
+		},
+		{
+			desc:     "list group role members with invalid role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			pageMeta: sdk.PageMetadata{
+				Offset: 0,
+				Limit:  5,
+			},
+			roleName: invalid,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "list group role members with empty role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			pageMeta: sdk.PageMetadata{
+				Offset: 0,
+				Limit:  5,
+			},
+			roleName: "",
+			svcErr:   nil,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingRoleName), http.StatusBadRequest),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("RoleListMembers", mock.Anything, tc.session, tc.groupID, tc.roleName, tc.pageMeta.Limit, tc.pageMeta.Offset).Return(tc.svcRes, tc.svcErr)
+			resp, err := mgsdk.GroupRoleMembers(tc.groupID, tc.roleName, tc.domainID, tc.pageMeta, tc.token)
+			assert.Equal(t, tc.err, err)
+			assert.Equal(t, tc.response, resp)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "RoleListMembers", mock.Anything, tc.session, tc.groupID, tc.roleName, tc.pageMeta.Limit, tc.pageMeta.Offset)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestRemoveGroupRoleMembers(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	roleName := roleName
+	members := []string{"user1", "user2"}
+	groupID := testsutil.GenerateUUID(t)
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		roleName        string
+		members         []string
+		svcErr          error
+		authenticateErr error
+		err             errors.SDKError
+	}{
+		{
+			desc:     "remove group role members successfully",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			members:  members,
+			svcErr:   nil,
+			err:      nil,
+		},
+		{
+			desc:            "remove group role members with invalid token",
+			token:           invalidToken,
+			domainID:        domainID,
+			groupID:         groupID,
+			roleName:        roleName,
+			members:         members,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "remove group role members with empty token",
+			token:    "",
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			members:  members,
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "remove group role members with invalid group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  testsutil.GenerateUUID(t),
+			roleName: roleName,
+			members:  members,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "remove group role members with empty group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  "",
+			roleName: roleName,
+			members:  members,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
+		},
+		{
+			desc:     "remove group role members with invalid role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: invalid,
+			members:  members,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "remove group role members with empty members",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			members:  []string{},
+			svcErr:   nil,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingRoleMembers), http.StatusBadRequest),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("RoleRemoveMembers", mock.Anything, tc.session, tc.groupID, tc.roleName, tc.members).Return(tc.svcErr)
+			err := mgsdk.RemoveGroupRoleMembers(tc.groupID, tc.roleName, tc.domainID, tc.members, tc.token)
+			assert.Equal(t, tc.err, err)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "RoleRemoveMembers", mock.Anything, tc.session, tc.groupID, tc.roleName, tc.members)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestRemoveAllGroupRoleMembers(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+
+	roleName := roleName
+	groupID := testsutil.GenerateUUID(t)
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		groupID         string
+		roleName        string
+		svcErr          error
+		authenticateErr error
+		err             errors.SDKError
+	}{
+		{
+			desc:     "remove all group role members successfully",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			svcErr:   nil,
+			err:      nil,
+		},
+		{
+			desc:            "remove all group role members with invalid token",
+			token:           invalidToken,
+			domainID:        domainID,
+			groupID:         groupID,
+			roleName:        roleName,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "remove all group role members with empty token",
+			token:    "",
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: roleName,
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "remove all group role members with invalid group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  testsutil.GenerateUUID(t),
+			roleName: roleName,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "remove all group role members with empty group id",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  "",
+			roleName: roleName,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
+		},
+		{
+			desc:     "remove all group role members with invalid role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: invalid,
+			svcErr:   svcerr.ErrAuthorization,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
+		},
+		{
+			desc:     "remove all group role members with empty role name",
+			token:    validToken,
+			domainID: domainID,
+			groupID:  groupID,
+			roleName: "",
+			svcErr:   nil,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingRoleName), http.StatusBadRequest),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("RoleRemoveAllMembers", mock.Anything, tc.session, tc.groupID, tc.roleName).Return(tc.svcErr)
+			err := mgsdk.RemoveAllGroupRoleMembers(tc.groupID, tc.roleName, tc.domainID, tc.token)
+			assert.Equal(t, tc.err, err)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "RoleRemoveAllMembers", mock.Anything, tc.session, tc.groupID, tc.roleName)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func TestListAvailableGroupRoleActions(t *testing.T) {
+	ts, csvc, auth := setupGroups()
+	defer ts.Close()
+
+	conf := sdk.Config{
+		GroupsURL: ts.URL,
+	}
+	mgsdk := sdk.NewSDK(conf)
+	actions := []string{"create", "update"}
+
+	cases := []struct {
+		desc            string
+		token           string
+		session         smqauthn.Session
+		domainID        string
+		svcRes          []string
+		svcErr          error
+		authenticateErr error
+		response        []string
+		err             errors.SDKError
+	}{
+		{
+			desc:     "list available role actions successfully",
+			token:    validToken,
+			domainID: domainID,
+			svcRes:   actions,
+			svcErr:   nil,
+			response: actions,
+			err:      nil,
+		},
+		{
+			desc:            "list available role actions with invalid token",
+			token:           invalidToken,
+			domainID:        domainID,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+		},
+		{
+			desc:     "list available role actions with empty token",
+			token:    "",
+			domainID: domainID,
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
+		},
+		{
+			desc:     "list available role actions with empty domain id",
+			token:    validToken,
+			domainID: "",
+			err:      errors.NewSDKErrorWithStatus(apiutil.ErrMissingDomainID, http.StatusBadRequest),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.token == validToken {
+				tc.session = smqauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
+			}
+			authCall := auth.On("Authenticate", mock.Anything, tc.token).Return(tc.session, tc.authenticateErr)
+			svcCall := csvc.On("ListAvailableActions", mock.Anything, tc.session).Return(tc.svcRes, tc.svcErr)
+			resp, err := mgsdk.AvailableGroupRoleActions(tc.domainID, tc.token)
+			assert.Equal(t, tc.err, err)
+			assert.Equal(t, tc.response, resp)
+			if tc.err == nil {
+				ok := svcCall.Parent.AssertCalled(t, "ListAvailableActions", mock.Anything, tc.session)
+				assert.True(t, ok)
+			}
+			svcCall.Unset()
+			authCall.Unset()
+		})
+	}
+}
+
+func generateTestGroup(t *testing.T) sdk.Group {
+	createdAt, err := time.Parse(time.RFC3339, "2023-03-03T00:00:00Z")
+	assert.Nil(t, err, fmt.Sprintf("unexpected error %s", err))
+	updatedAt := createdAt
+	gr := sdk.Group{
+		ID:          testsutil.GenerateUUID(t),
+		DomainID:    testsutil.GenerateUUID(t),
+		Name:        gName,
+		Description: description,
+		Metadata:    sdk.Metadata{"role": "client"},
+		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
+		Status:      groups.EnabledStatus.String(),
+	}
+	return gr
 }

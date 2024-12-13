@@ -34,6 +34,7 @@ const (
 	invalid         = "invalid"
 	wrongID         = "wrongID"
 	defPermission   = "read_permission"
+	roleName        = "roleName"
 )
 
 var (

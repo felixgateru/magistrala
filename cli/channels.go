@@ -199,6 +199,6 @@ func NewChannelsCmd() *cobra.Command {
 	for i := range cmdChannels {
 		cmd.AddCommand(&cmdChannels[i])
 	}
-	
+
 	return &cmd
 }

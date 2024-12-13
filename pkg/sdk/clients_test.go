@@ -155,9 +155,9 @@ func TestCreateClient(t *testing.T) {
 			domainID: domainID,
 			token:    validToken,
 			createClientReq: sdk.Client{
-				Name: "test",
+				Name: valid,
 				Metadata: map[string]interface{}{
-					"test": make(chan int),
+					valid: make(chan int),
 				},
 			},
 			svcReq:   clients.Client{},
@@ -779,7 +779,7 @@ func TestUpdateClient(t *testing.T) {
 			token:    validToken,
 
 			updateClientReq: sdk.Client{
-				ID: "test",
+				ID: valid,
 				Metadata: map[string]interface{}{
 					"test": make(chan int),
 				},
@@ -931,7 +931,7 @@ func TestUpdateClientTags(t *testing.T) {
 			domainID: domainID,
 			token:    validToken,
 			updateClientReq: sdk.Client{
-				ID: "test",
+				ID: valid,
 				Metadata: map[string]interface{}{
 					"test": make(chan int),
 				},
@@ -1844,7 +1844,7 @@ func TestCreateClientRole(t *testing.T) {
 	mgsdk := sdk.NewSDK(conf)
 
 	rReq := sdk.RoleReq{
-		RoleName:        "test",
+		RoleName:        roleName,
 		OptionalActions: []string{"create", "update"},
 		OptionalMembers: []string{testsutil.GenerateUUID(t), testsutil.GenerateUUID(t)},
 	}
@@ -1973,7 +1973,7 @@ func TestListClientRoles(t *testing.T) {
 
 	role := roles.Role{
 		ID:        testsutil.GenerateUUID(t),
-		Name:      "test",
+		Name:      roleName,
 		EntityID:  clientID,
 		CreatedBy: testsutil.GenerateUUID(t),
 		CreatedAt: time.Now().UTC(),
@@ -2093,7 +2093,7 @@ func TestListClientRoles(t *testing.T) {
 	}
 }
 
-func TestViewClietRole(t *testing.T) {
+func TestViewClientRole(t *testing.T) {
 	ts, csvc, auth := setupClients()
 	defer ts.Close()
 
@@ -2104,7 +2104,7 @@ func TestViewClietRole(t *testing.T) {
 
 	role := roles.Role{
 		ID:        testsutil.GenerateUUID(t),
-		Name:      "test",
+		Name:      roleName,
 		EntityID:  clientID,
 		CreatedBy: testsutil.GenerateUUID(t),
 		CreatedAt: time.Now().UTC(),
@@ -2219,8 +2219,8 @@ func TestUpdateClientRole(t *testing.T) {
 	}
 	mgsdk := sdk.NewSDK(conf)
 
-	roleName := "test"
-	newRoleName := "newTest"
+	roleName := roleName
+	newRoleName := valid
 	userID := testsutil.GenerateUUID(t)
 	createdAt := time.Now().UTC().Add(-time.Hour)
 	role := roles.Role{
@@ -2337,7 +2337,7 @@ func TestDeleteClientRole(t *testing.T) {
 	}
 	mgsdk := sdk.NewSDK(conf)
 
-	roleName := "test"
+	roleName := roleName
 
 	cases := []struct {
 		desc            string
@@ -2432,7 +2432,7 @@ func TestAddClientRoleActions(t *testing.T) {
 	}
 	mgsdk := sdk.NewSDK(conf)
 
-	roleName := "test"
+	roleName := roleName
 	actions := []string{"create", "update"}
 
 	cases := []struct {
@@ -2556,7 +2556,7 @@ func TestListClientRoleActions(t *testing.T) {
 	}
 	mgsdk := sdk.NewSDK(conf)
 
-	roleName := "test"
+	roleName := roleName
 	actions := []string{"create", "update"}
 
 	cases := []struct {
@@ -2666,7 +2666,7 @@ func TestRemoveClientRoleActions(t *testing.T) {
 	}
 	mgsdk := sdk.NewSDK(conf)
 
-	roleName := "test"
+	roleName := roleName
 	actions := []string{"create", "update"}
 
 	cases := []struct {
@@ -2779,7 +2779,7 @@ func TestRemoveAllClientRoleActions(t *testing.T) {
 	}
 	mgsdk := sdk.NewSDK(conf)
 
-	roleName := "test"
+	roleName := roleName
 
 	cases := []struct {
 		desc            string
@@ -2883,7 +2883,7 @@ func TestAddClientRoleMembers(t *testing.T) {
 	}
 	mgsdk := sdk.NewSDK(conf)
 
-	roleName := "test"
+	roleName := roleName
 	members := []string{"user1", "user2"}
 
 	cases := []struct {
@@ -3007,7 +3007,7 @@ func TestListClientRoleMembers(t *testing.T) {
 	}
 	mgsdk := sdk.NewSDK(conf)
 
-	roleName := "test"
+	roleName := roleName
 	members := []string{"user1", "user2"}
 
 	cases := []struct {
@@ -3156,7 +3156,7 @@ func TestRemoveClientRoleMembers(t *testing.T) {
 	}
 	mgsdk := sdk.NewSDK(conf)
 
-	roleName := "test"
+	roleName := roleName
 	members := []string{"user1", "user2"}
 
 	cases := []struct {
@@ -3269,7 +3269,7 @@ func TestRemoveAllClientRoleMembers(t *testing.T) {
 	}
 	mgsdk := sdk.NewSDK(conf)
 
-	roleName := "test"
+	roleName := roleName
 
 	cases := []struct {
 		desc            string

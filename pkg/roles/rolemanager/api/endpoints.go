@@ -114,7 +114,7 @@ func DeleteRoleEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 	}
 }
 
-func  ListAvailableActionsEndpoint(svc roles.RoleManager) endpoint.Endpoint {
+func ListAvailableActionsEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(listAvailableActionsReq)
 		if err := req.validate(); err != nil {

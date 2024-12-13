@@ -122,6 +122,7 @@ func (sdk mgSDK) EnableDomain(domainID, token string) errors.SDKError {
 func (sdk mgSDK) DisableDomain(domainID, token string) errors.SDKError {
 	return sdk.changeDomainStatus(token, domainID, disableEndpoint)
 }
+
 func (sdk mgSDK) FreezeDomain(domainID, token string) errors.SDKError {
 	return sdk.changeDomainStatus(token, domainID, freezeEndpoint)
 }
@@ -138,7 +139,7 @@ func (sdk mgSDK) CreateDomainRole(id string, rq RoleReq, token string) (Role, er
 		return Role{}, errors.NewSDKError(err)
 	}
 
-	url := fmt.Sprintf("%s/%s/%s", sdk.domainsURL, domainsEndpoint, id)
+	url := fmt.Sprintf("%s/%s/%s/%s", sdk.domainsURL, domainsEndpoint, id, rolesEndpoint)
 	_, body, sdkerr := sdk.processRequest(http.MethodPost, url, token, data, nil, http.StatusCreated)
 	if sdkerr != nil {
 		return Role{}, sdkerr
@@ -152,8 +153,13 @@ func (sdk mgSDK) CreateDomainRole(id string, rq RoleReq, token string) (Role, er
 	return role, nil
 }
 
-func (sdk mgSDK) DomainRoles(id, token string) (RolesPage, errors.SDKError) {
-	url := fmt.Sprintf("%s/%s/%s/%s", sdk.domainsURL, domainsEndpoint, id, rolesEndpoint)
+func (sdk mgSDK) DomainRoles(id string, pm PageMetadata, token string) (RolesPage, errors.SDKError) {
+	endpoint := fmt.Sprintf("%s/%s/%s", domainsEndpoint, id, rolesEndpoint)
+	url, err := sdk.withQueryParams(sdk.domainsURL, endpoint, pm)
+	if err != nil {
+		return RolesPage{}, errors.NewSDKError(err)
+	}
+
 	_, body, sdkerr := sdk.processRequest(http.MethodGet, url, token, nil, nil, http.StatusOK)
 	if sdkerr != nil {
 		return RolesPage{}, sdkerr
@@ -254,14 +260,14 @@ func (sdk mgSDK) RemoveDomainRoleActions(id, roleName string, actions []string, 
 	}
 
 	url := fmt.Sprintf("%s/%s/%s/%s/%s/%s/%s", sdk.domainsURL, domainsEndpoint, id, rolesEndpoint, roleName, actionsEndpoint, "delete")
-	_, _, sdkerr := sdk.processRequest(http.MethodPost, url, token, data, nil, http.StatusOK)
+	_, _, sdkerr := sdk.processRequest(http.MethodPost, url, token, data, nil, http.StatusNoContent)
 
 	return sdkerr
 }
 
 func (sdk mgSDK) RemoveAllDomainRoleActions(id, roleName, token string) errors.SDKError {
 	url := fmt.Sprintf("%s/%s/%s/%s/%s/%s/%s", sdk.domainsURL, domainsEndpoint, id, rolesEndpoint, roleName, actionsEndpoint, "delete-all")
-	_, _, sdkerr := sdk.processRequest(http.MethodDelete, url, token, nil, nil, http.StatusOK)
+	_, _, sdkerr := sdk.processRequest(http.MethodPost, url, token, nil, nil, http.StatusNoContent)
 
 	return sdkerr
 }
@@ -287,19 +293,23 @@ func (sdk mgSDK) AddDomainRoleMembers(id, roleName string, members []string, tok
 	return res.Members, nil
 }
 
-func (sdk mgSDK) DomainRoleMembers(id, roleName string, token string) ([]string, errors.SDKError) {
-	url := fmt.Sprintf("%s/%s/%s/%s/%s/%s", sdk.domainsURL, domainsEndpoint, id, rolesEndpoint, roleName, membersEndpoint)
+func (sdk mgSDK) DomainRoleMembers(id, roleName string, pm PageMetadata, token string) (RoleMembersPage, errors.SDKError) {
+	endpoint := fmt.Sprintf("%s/%s/%s/%s/%s", domainsEndpoint, id, rolesEndpoint, roleName, membersEndpoint)
+	url, err := sdk.withQueryParams(sdk.domainsURL, endpoint, pm)
+	if err != nil {
+		return RoleMembersPage{}, errors.NewSDKError(err)
+	}
 	_, body, sdkerr := sdk.processRequest(http.MethodGet, url, token, nil, nil, http.StatusOK)
 	if sdkerr != nil {
-		return nil, sdkerr
+		return RoleMembersPage{}, sdkerr
 	}
 
-	res := roleMembersRes{}
+	res := RoleMembersPage{}
 	if err := json.Unmarshal(body, &res); err != nil {
-		return nil, errors.NewSDKError(err)
+		return RoleMembersPage{}, errors.NewSDKError(err)
 	}
 
-	return res.Members, nil
+	return res, nil
 }
 
 func (sdk mgSDK) RemoveDomainRoleMembers(id, roleName string, members []string, token string) errors.SDKError {
@@ -310,20 +320,20 @@ func (sdk mgSDK) RemoveDomainRoleMembers(id, roleName string, members []string, 
 	}
 
 	url := fmt.Sprintf("%s/%s/%s/%s/%s/%s/%s", sdk.domainsURL, domainsEndpoint, id, rolesEndpoint, roleName, membersEndpoint, "delete")
-	_, _, sdkerr := sdk.processRequest(http.MethodPost, url, token, data, nil, http.StatusOK)
+	_, _, sdkerr := sdk.processRequest(http.MethodPost, url, token, data, nil, http.StatusNoContent)
 
 	return sdkerr
 }
 
 func (sdk mgSDK) RemoveAllDomainRoleMembers(id, roleName, token string) errors.SDKError {
 	url := fmt.Sprintf("%s/%s/%s/%s/%s/%s/%s", sdk.domainsURL, domainsEndpoint, id, rolesEndpoint, roleName, membersEndpoint, "delete-all")
-	_, _, sdkerr := sdk.processRequest(http.MethodPost, url, token, nil, nil, http.StatusOK)
+	_, _, sdkerr := sdk.processRequest(http.MethodPost, url, token, nil, nil, http.StatusNoContent)
 
 	return sdkerr
 }
 
-func (sdk mgSDK) AvailableDomainRoleActions(id, token string) ([]string, errors.SDKError) {
-	url := fmt.Sprintf("%s/%s/%s/%s/%s", sdk.domainsURL, domainsEndpoint, id, rolesEndpoint, "available-actions")
+func (sdk mgSDK) AvailableDomainRoleActions(token string) ([]string, errors.SDKError) {
+	url := fmt.Sprintf("%s/%s/%s/%s", sdk.domainsURL, domainsEndpoint, rolesEndpoint, "available-actions")
 	_, body, sdkerr := sdk.processRequest(http.MethodGet, url, token, nil, nil, http.StatusOK)
 	if sdkerr != nil {
 		return nil, sdkerr

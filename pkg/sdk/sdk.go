@@ -781,9 +781,13 @@ type SDK interface {
 	// GroupRoles returns group roles.
 	//
 	// example:
-	//  roles, _ := sdk.GroupRoles("groupID", "domainID", "token")
+	//  pm := sdk.PageMetadata{
+	//   Offset: 0,
+	//   Limit:  10,
+	// }
+	//  roles, _ := sdk.GroupRoles("groupID", "domainID",pm, "token")
 	//  fmt.Println(roles)
-	GroupRoles(id, domainID, token string) (RolesPage, errors.SDKError)
+	GroupRoles(id, domainID string, pm PageMetadata, token string) (RolesPage, errors.SDKError)
 
 	// GroupRole returns group role object by roleName.
 	//
@@ -847,9 +851,13 @@ type SDK interface {
 	// GroupRoleMembers returns group role members by roleName.
 	//
 	// example:
+	// pm := sdk.PageMetadata{
+	//   Offset: 0,
+	//  Limit:  10,
+	// }
 	//  members, _ := sdk.GroupRoleMembers("groupID", "roleName", "domainID", "token")
 	//  fmt.Println(members)
-	GroupRoleMembers(id, roleName, domainID string, token string) ([]string, errors.SDKError)
+	GroupRoleMembers(id, roleName, domainID string, pm PageMetadata, token string) (RoleMembersPage, errors.SDKError)
 
 	// RemoveGroupRoleMembers removes members from a group role.
 	//
@@ -869,9 +877,9 @@ type SDK interface {
 	// AvailableGroupRoleActions returns available actions for a group role.
 	//
 	// example:
-	//  actions, _ := sdk.AvailableGroupRoleActions("groupID", "domainID", "token")
+	//  actions, _ := sdk.AvailableGroupRoleActions("groupID", "token")
 	//  fmt.Println(actions)
-	AvailableGroupRoleActions(id, domainID, token string) ([]string, errors.SDKError)
+	AvailableGroupRoleActions(id, token string) ([]string, errors.SDKError)
 
 	// CreateChannel creates new channel and returns its id.
 	//
@@ -1290,9 +1298,13 @@ type SDK interface {
 	// DomainRoles returns domain roles.
 	//
 	// example:
-	//  roles, _ := sdk.DomainRoles("domainID", "token")
+	//  pm := sdk.PageMetadata{
+	//   Offset: 0,
+	//   Limit:  10,
+	// }
+	//  roles, _ := sdk.DomainRoles("domainID", pm, "token")
 	//  fmt.Println(roles)
-	DomainRoles(id, token string) (RolesPage, errors.SDKError)
+	DomainRoles(id string, pm PageMetadata, token string) (RolesPage, errors.SDKError)
 
 	// DomainRole returns domain role object by roleName.
 	//
@@ -1356,9 +1368,13 @@ type SDK interface {
 	// DomainRoleMembers returns domain role members by roleName.
 	//
 	// example:
+	//  pm := sdk.PageMetadata{
+	//    Offset: 0,
+	//    Limit:  10,
+	//  }
 	//  members, _ := sdk.DomainRoleMembers("domainID", "roleName", "token")
 	//  fmt.Println(members)
-	DomainRoleMembers(id, roleName string, token string) ([]string, errors.SDKError)
+	DomainRoleMembers(id, roleName string, pm PageMetadata, token string) (RoleMembersPage, errors.SDKError)
 
 	// RemoveDomainRoleMembers removes members from a domain role.
 	//
@@ -1378,9 +1394,9 @@ type SDK interface {
 	// AvailableDomainRoleActions returns available actions for a domain role.
 	//
 	// example:
-	//  actions, _ := sdk.AvailableDomainRoleActions("domainID", "token")
+	//  actions, _ := sdk.AvailableDomainRoleActions("token")
 	//  fmt.Println(actions)
-	AvailableDomainRoleActions(id, token string) ([]string, errors.SDKError)
+	AvailableDomainRoleActions(token string) ([]string, errors.SDKError)
 
 	// SendInvitation sends an invitation to the email address associated with the given user.
 	//
