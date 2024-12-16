@@ -52,14 +52,6 @@ func (ms *metricsMiddleware) RetrieveDomain(ctx context.Context, session authn.S
 	return ms.svc.RetrieveDomain(ctx, session, id)
 }
 
-func (ms *metricsMiddleware) RetrieveStatus(ctx context.Context, id string) (domains.Status, error) {
-	defer func(begin time.Time) {
-		ms.counter.With("method", "retrieve_status").Add(1)
-		ms.latency.With("method", "retrieve_status").Observe(time.Since(begin).Seconds())
-	}(time.Now())
-	return ms.svc.RetrieveStatus(ctx, id)
-}
-
 func (ms *metricsMiddleware) UpdateDomain(ctx context.Context, session authn.Session, id string, d domains.DomainReq) (domains.Domain, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "update_domain").Add(1)
@@ -98,12 +90,4 @@ func (ms *metricsMiddleware) ListDomains(ctx context.Context, session authn.Sess
 		ms.latency.With("method", "list_domains").Observe(time.Since(begin).Seconds())
 	}(time.Now())
 	return ms.svc.ListDomains(ctx, session, page)
-}
-
-func (ms *metricsMiddleware) DeleteUserFromDomains(ctx context.Context, id string) error {
-	defer func(begin time.Time) {
-		ms.counter.With("method", "delete_user_from_domains").Add(1)
-		ms.latency.With("method", "delete_user_from_domains").Observe(time.Since(begin).Seconds())
-	}(time.Now())
-	return ms.svc.DeleteUserFromDomains(ctx, id)
 }

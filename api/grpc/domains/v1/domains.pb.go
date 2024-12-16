@@ -111,7 +111,7 @@ func (x *DeleteUserReq) GetId() string {
 	return ""
 }
 
-type RetrieveDomainStatusReq struct {
+type RetrieveEntityReq struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -119,20 +119,20 @@ type RetrieveDomainStatusReq struct {
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 }
 
-func (x *RetrieveDomainStatusReq) Reset() {
-	*x = RetrieveDomainStatusReq{}
+func (x *RetrieveEntityReq) Reset() {
+	*x = RetrieveEntityReq{}
 	mi := &file_domains_v1_domains_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RetrieveDomainStatusReq) String() string {
+func (x *RetrieveEntityReq) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RetrieveDomainStatusReq) ProtoMessage() {}
+func (*RetrieveEntityReq) ProtoMessage() {}
 
-func (x *RetrieveDomainStatusReq) ProtoReflect() protoreflect.Message {
+func (x *RetrieveEntityReq) ProtoReflect() protoreflect.Message {
 	mi := &file_domains_v1_domains_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -144,40 +144,42 @@ func (x *RetrieveDomainStatusReq) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RetrieveDomainStatusReq.ProtoReflect.Descriptor instead.
-func (*RetrieveDomainStatusReq) Descriptor() ([]byte, []int) {
+// Deprecated: Use RetrieveEntityReq.ProtoReflect.Descriptor instead.
+func (*RetrieveEntityReq) Descriptor() ([]byte, []int) {
 	return file_domains_v1_domains_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *RetrieveDomainStatusReq) GetId() string {
+func (x *RetrieveEntityReq) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-type RetrieveDomainStatusRes struct {
+type RetrieveEntityRes struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Status string `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	Id     string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name   string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Status uint32 `protobuf:"varint,3,opt,name=status,proto3" json:"status,omitempty"`
 }
 
-func (x *RetrieveDomainStatusRes) Reset() {
-	*x = RetrieveDomainStatusRes{}
+func (x *RetrieveEntityRes) Reset() {
+	*x = RetrieveEntityRes{}
 	mi := &file_domains_v1_domains_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RetrieveDomainStatusRes) String() string {
+func (x *RetrieveEntityRes) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RetrieveDomainStatusRes) ProtoMessage() {}
+func (*RetrieveEntityRes) ProtoMessage() {}
 
-func (x *RetrieveDomainStatusRes) ProtoReflect() protoreflect.Message {
+func (x *RetrieveEntityRes) ProtoReflect() protoreflect.Message {
 	mi := &file_domains_v1_domains_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -189,16 +191,30 @@ func (x *RetrieveDomainStatusRes) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RetrieveDomainStatusRes.ProtoReflect.Descriptor instead.
-func (*RetrieveDomainStatusRes) Descriptor() ([]byte, []int) {
+// Deprecated: Use RetrieveEntityRes.ProtoReflect.Descriptor instead.
+func (*RetrieveEntityRes) Descriptor() ([]byte, []int) {
 	return file_domains_v1_domains_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *RetrieveDomainStatusRes) GetStatus() string {
+func (x *RetrieveEntityRes) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RetrieveEntityRes) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RetrieveEntityRes) GetStatus() uint32 {
 	if x != nil {
 		return x.Status
 	}
-	return ""
+	return 0
 }
 
 var File_domains_v1_domains_proto protoreflect.FileDescriptor
@@ -237,16 +253,16 @@ func file_domains_v1_domains_proto_rawDescGZIP() []byte {
 
 var file_domains_v1_domains_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_domains_v1_domains_proto_goTypes = []any{
-	(*DeleteUserRes)(nil),           // 0: domains.v1.DeleteUserRes
-	(*DeleteUserReq)(nil),           // 1: domains.v1.DeleteUserReq
-	(*RetrieveDomainStatusReq)(nil), // 2: domains.v1.RetrieveDomainStatusReq
-	(*RetrieveDomainStatusRes)(nil), // 3: domains.v1.RetrieveDomainStatusRes
+	(*DeleteUserRes)(nil),     // 0: domains.v1.DeleteUserRes
+	(*DeleteUserReq)(nil),     // 1: domains.v1.DeleteUserReq
+	(*RetrieveEntityReq)(nil), // 2: domains.v1.RetrieveEntityReq
+	(*RetrieveEntityRes)(nil), // 3: domains.v1.RetrieveEntityRes
 }
 var file_domains_v1_domains_proto_depIdxs = []int32{
 	1, // 0: domains.v1.DomainsService.DeleteUserFromDomains:input_type -> domains.v1.DeleteUserReq
-	2, // 1: domains.v1.DomainsService.RetrieveDomainStatus:input_type -> domains.v1.RetrieveDomainStatusReq
+	2, // 1: domains.v1.DomainsService.RetrieveEntity:input_type -> domains.v1.RetrieveEntityReq
 	0, // 2: domains.v1.DomainsService.DeleteUserFromDomains:output_type -> domains.v1.DeleteUserRes
-	3, // 3: domains.v1.DomainsService.RetrieveDomainStatus:output_type -> domains.v1.RetrieveDomainStatusRes
+	3, // 3: domains.v1.DomainsService.RetrieveEntity:output_type -> domains.v1.RetrieveEntityRes
 	2, // [2:4] is the sub-list for method output_type
 	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

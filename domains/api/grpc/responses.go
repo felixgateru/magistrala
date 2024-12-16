@@ -7,6 +7,8 @@ type deleteUserRes struct {
 	deleted bool
 }
 
-type retrieveDomainStatusRes struct {
-	status string
+type retrieveEntityRes struct {
+	id     string
+	name   string
+	status uint8
 }

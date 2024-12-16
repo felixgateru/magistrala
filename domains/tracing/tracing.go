@@ -42,14 +42,6 @@ func (tm *tracingMiddleware) RetrieveDomain(ctx context.Context, session authn.S
 	return tm.svc.RetrieveDomain(ctx, session, id)
 }
 
-func (tm *tracingMiddleware) RetrieveStatus(ctx context.Context, id string) (domains.Status, error) {
-	ctx, span := tm.tracer.Start(ctx, "view_domain_status", trace.WithAttributes(
-		attribute.String("id", id),
-	))
-	defer span.End()
-	return tm.svc.RetrieveStatus(ctx, id)
-}
-
 func (tm *tracingMiddleware) UpdateDomain(ctx context.Context, session authn.Session, id string, d domains.DomainReq) (domains.Domain, error) {
 	ctx, span := tm.tracer.Start(ctx, "update_domain", trace.WithAttributes(
 		attribute.String("id", id),
@@ -86,10 +78,4 @@ func (tm *tracingMiddleware) ListDomains(ctx context.Context, session authn.Sess
 	ctx, span := tm.tracer.Start(ctx, "list_domains")
 	defer span.End()
 	return tm.svc.ListDomains(ctx, session, p)
-}
-
-func (tm *tracingMiddleware) DeleteUserFromDomains(ctx context.Context, id string) error {
-	ctx, span := tm.tracer.Start(ctx, "delete_user_from_domains")
-	defer span.End()
-	return tm.svc.DeleteUserFromDomains(ctx, id)
 }

@@ -32,7 +32,7 @@ type service struct {
 
 var _ Service = (*service)(nil)
 
-func New(repo Repository, cache Cache, policy policies.Service, idProvider supermq.IDProvider, sidProvider supermq.IDProvider) (Service, error) {
+func New(repo Repository, policy policies.Service, idProvider supermq.IDProvider, sidProvider supermq.IDProvider, availableActions []roles.Action, builtInRoles map[roles.BuiltInRoleName][]roles.Action) (Service, error) {
 	rpms, err := roles.NewProvisionManageService(policies.DomainType, repo, policy, sidProvider, availableActions, builtInRoles)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,6 @@ func New(repo Repository, cache Cache, policy policies.Service, idProvider super
 
 	return &service{
 		repo:                   repo,
-		cache:                  cache,
 		policy:                 policy,
 		idProvider:             idProvider,
 		ProvisionManageService: rpms,
@@ -111,23 +110,6 @@ func (svc service) RetrieveDomain(ctx context.Context, session authn.Session, id
 	return domain, nil
 }
 
-func (svc service) RetrieveStatus(ctx context.Context, id string) (Status, error) {
-	status, err := svc.cache.Status(ctx, id)
-	if err == nil {
-		return status, nil
-	}
-	dom, err := svc.repo.RetrieveByID(ctx, id)
-	if err != nil {
-		return AllStatus, errors.Wrap(svcerr.ErrViewEntity, err)
-	}
-	status = dom.Status
-	if err := svc.cache.Save(ctx, id, status); err != nil {
-		return AllStatus, errors.Wrap(svcerr.ErrUpdateEntity, err)
-	}
-
-	return status, nil
-}
-
 func (svc service) UpdateDomain(ctx context.Context, session authn.Session, id string, d DomainReq) (Domain, error) {
 	dom, err := svc.repo.Update(ctx, id, session.UserID, d)
 	if err != nil {
@@ -187,45 +169,4 @@ func (svc service) ListDomains(ctx context.Context, session authn.Session, p Pag
 		return DomainsPage{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}
 	return dp, nil
-}
-
-func (svc service) DeleteUserFromDomains(ctx context.Context, id string) (err error) {
-	domainsPage, err := svc.repo.ListDomains(ctx, Page{UserID: id, Limit: defLimit})
-	if err != nil {
-		return err
-	}
-
-	if domainsPage.Total > defLimit {
-		for i := defLimit; i < int(domainsPage.Total); i += defLimit {
-			page := Page{UserID: id, Offset: uint64(i), Limit: defLimit}
-			dp, err := svc.repo.ListDomains(ctx, page)
-			if err != nil {
-				return err
-			}
-			domainsPage.Domains = append(domainsPage.Domains, dp.Domains...)
-		}
-	}
-
-	// if err := svc.RemoveMembersFromAllRoles(ctx, authn.Session{}, []string{id}); err != nil {
-	// 	return err
-	// }
-	////////////ToDo//////////////
-	// Remove user from all roles in all domains
-	//////////////////////////
-
-	// for _, domain := range domainsPage.Domains {
-	// 	req := policies.Policy{
-	// 		Subject:     policies.EncodeDomainUserID(domain.ID, id),
-	// 		SubjectType: policies.UserType,
-	// 	}
-	// 	if err := svc.policies.DeletePolicyFilter(ctx, req); err != nil {
-	// 		return err
-	// 	}
-	// }
-
-	// if err := svc.repo.DeleteUserPolicies(ctx, id); err != nil {
-	// 	return err
-	// }
-
-	return nil
 }

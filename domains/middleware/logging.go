@@ -68,22 +68,6 @@ func (lm *loggingMiddleware) RetrieveDomain(ctx context.Context, session authn.S
 	return lm.svc.RetrieveDomain(ctx, session, id)
 }
 
-func (lm *loggingMiddleware) RetrieveStatus(ctx context.Context, id string) (s domains.Status, err error) {
-	defer func(begin time.Time) {
-		args := []any{
-			slog.String("duration", time.Since(begin).String()),
-			slog.String("domain_id", id),
-		}
-		if err != nil {
-			args = append(args, slog.String("error", err.Error()))
-			lm.logger.Warn("Retrieve domain status failed", args...)
-			return
-		}
-		lm.logger.Info("Retrieve domain status completed successfully", args...)
-	}(time.Now())
-	return lm.svc.RetrieveStatus(ctx, id)
-}
-
 func (lm *loggingMiddleware) UpdateDomain(ctx context.Context, session authn.Session, id string, d domains.DomainReq) (do domains.Domain, err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -178,20 +162,4 @@ func (lm *loggingMiddleware) ListDomains(ctx context.Context, session authn.Sess
 		lm.logger.Info("List domains completed successfully", args...)
 	}(time.Now())
 	return lm.svc.ListDomains(ctx, session, page)
-}
-
-func (lm *loggingMiddleware) DeleteUserFromDomains(ctx context.Context, id string) (err error) {
-	defer func(begin time.Time) {
-		args := []any{
-			slog.String("duration", time.Since(begin).String()),
-			slog.String("id", id),
-		}
-		if err != nil {
-			args = append(args, slog.Any("error", err))
-			lm.logger.Warn("Delete entity policies failed to complete successfully", args...)
-			return
-		}
-		lm.logger.Info("Delete entity policies completed successfully", args...)
-	}(time.Now())
-	return lm.svc.DeleteUserFromDomains(ctx, id)
 }

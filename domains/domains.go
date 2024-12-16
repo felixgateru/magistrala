@@ -164,13 +164,11 @@ func (page DomainsPage) MarshalJSON() ([]byte, error) {
 type Service interface {
 	CreateDomain(ctx context.Context, sesssion authn.Session, d Domain) (Domain, error)
 	RetrieveDomain(ctx context.Context, sesssion authn.Session, id string) (Domain, error)
-	RetrieveStatus(ctx context.Context, id string) (Status, error)
 	UpdateDomain(ctx context.Context, sesssion authn.Session, id string, d DomainReq) (Domain, error)
 	EnableDomain(ctx context.Context, sesssion authn.Session, id string) (Domain, error)
 	DisableDomain(ctx context.Context, sesssion authn.Session, id string) (Domain, error)
 	FreezeDomain(ctx context.Context, sesssion authn.Session, id string) (Domain, error)
 	ListDomains(ctx context.Context, sesssion authn.Session, page Page) (DomainsPage, error)
-	DeleteUserFromDomains(ctx context.Context, id string) error
 	roles.RoleManager
 }
 

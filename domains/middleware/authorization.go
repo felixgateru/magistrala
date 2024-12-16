@@ -7,9 +7,12 @@ import (
 	"context"
 
 	"github.com/absmach/supermq/domains"
+	"github.com/absmach/supermq/domains/private"
 	"github.com/absmach/supermq/pkg/authn"
 	"github.com/absmach/supermq/pkg/authz"
 	smqauthz "github.com/absmach/supermq/pkg/authz"
+	"github.com/absmach/supermq/pkg/errors"
+	svcerr "github.com/absmach/supermq/pkg/errors/service"
 	"github.com/absmach/supermq/pkg/policies"
 	rmMW "github.com/absmach/supermq/pkg/roles/rolemanager/middleware"
 	"github.com/absmach/supermq/pkg/svcutil"
@@ -19,6 +22,7 @@ var _ domains.Service = (*authorizationMiddleware)(nil)
 
 type authorizationMiddleware struct {
 	svc   domains.Service
+	psvc  private.Service
 	authz smqauthz.Authorization
 	opp   svcutil.OperationPerm
 	rmMW.RoleManagerAuthorizationMiddleware
@@ -51,6 +55,9 @@ func (am *authorizationMiddleware) CreateDomain(ctx context.Context, session aut
 }
 
 func (am *authorizationMiddleware) RetrieveDomain(ctx context.Context, session authn.Session, id string) (domains.Domain, error) {
+	if err := am.checkDomain(ctx, session, id); err != nil {
+		return domains.Domain{}, err
+	}
 	if err := am.authorize(ctx, domains.OpRetrieveDomain, authz.PolicyReq{
 		Subject:     session.DomainUserID,
 		SubjectType: policies.UserType,
@@ -63,11 +70,10 @@ func (am *authorizationMiddleware) RetrieveDomain(ctx context.Context, session a
 	return am.svc.RetrieveDomain(ctx, session, id)
 }
 
-func (am *authorizationMiddleware) RetrieveStatus(ctx context.Context, id string) (domains.Status, error) {
-	return am.svc.RetrieveStatus(ctx, id)
-}
-
 func (am *authorizationMiddleware) UpdateDomain(ctx context.Context, session authn.Session, id string, d domains.DomainReq) (domains.Domain, error) {
+	if err := am.checkDomain(ctx, session, id); err != nil {
+		return domains.Domain{}, err
+	}
 	if err := am.authorize(ctx, domains.OpUpdateDomain, authz.PolicyReq{
 		Subject:     session.DomainUserID,
 		SubjectType: policies.UserType,
@@ -81,6 +87,9 @@ func (am *authorizationMiddleware) UpdateDomain(ctx context.Context, session aut
 }
 
 func (am *authorizationMiddleware) EnableDomain(ctx context.Context, session authn.Session, id string) (domains.Domain, error) {
+	if err := am.checkDomain(ctx, session, id); err != nil {
+		return domains.Domain{}, err
+	}
 	if err := am.authorize(ctx, domains.OpEnableDomain, authz.PolicyReq{
 		Subject:     session.DomainUserID,
 		SubjectType: policies.UserType,
@@ -95,6 +104,9 @@ func (am *authorizationMiddleware) EnableDomain(ctx context.Context, session aut
 }
 
 func (am *authorizationMiddleware) DisableDomain(ctx context.Context, session authn.Session, id string) (domains.Domain, error) {
+	if err := am.checkDomain(ctx, session, id); err != nil {
+		return domains.Domain{}, err
+	}
 	if err := am.authorize(ctx, domains.OpDisableDomain, authz.PolicyReq{
 		Subject:     session.DomainUserID,
 		SubjectType: policies.UserType,
@@ -137,10 +149,6 @@ func (am *authorizationMiddleware) ListDomains(ctx context.Context, session auth
 	return am.svc.ListDomains(ctx, session, page)
 }
 
-func (am *authorizationMiddleware) DeleteUserFromDomains(ctx context.Context, id string) (err error) {
-	return am.svc.DeleteUserFromDomains(ctx, id)
-}
-
 func (am *authorizationMiddleware) authorize(ctx context.Context, op svcutil.Operation, authReq authz.PolicyReq) error {
 	perm, err := am.opp.GetPermission(op)
 	if err != nil {
@@ -153,4 +161,36 @@ func (am *authorizationMiddleware) authorize(ctx context.Context, op svcutil.Ope
 	}
 
 	return nil
+}
+
+func (am *authorizationMiddleware) checkDomain(ctx context.Context, session authn.Session, id string) error {
+	dom, err := am.psvc.RetrieveById(ctx, id)
+	if err != nil {
+		return errors.Wrap(svcerr.ErrViewEntity, err)
+	}
+
+	switch dom.Status {
+	case domains.FreezeStatus:
+		return am.authz.Authorize(ctx, authz.PolicyReq{
+			Subject:     session.UserID,
+			SubjectType: policies.UserType,
+			SubjectKind: policies.UsersKind,
+			Permission:  policies.AdminPermission,
+			Object:      policies.SuperMQObject,
+			ObjectType:  policies.PlatformType,
+		})
+	case domains.DisabledStatus:
+		return am.authz.Authorize(ctx, authz.PolicyReq{
+			Subject:     session.DomainUserID,
+			SubjectType: policies.UserType,
+			SubjectKind: policies.UsersKind,
+			Permission:  policies.AdminPermission,
+			Object:      id,
+			ObjectType:  policies.DomainType,
+		})
+	case domains.EnabledStatus:
+		return nil
+	default:
+		return svcerr.ErrInvalidStatus
+	}
 }

@@ -6,7 +6,7 @@ package grpc
 import (
 	"context"
 
-	"github.com/absmach/supermq/domains"
+	domains "github.com/absmach/supermq/domains/private"
 	"github.com/go-kit/kit/endpoint"
 )
 
@@ -25,18 +25,22 @@ func deleteUserFromDomainsEndpoint(svc domains.Service) endpoint.Endpoint {
 	}
 }
 
-func retrieveDomainStatusEndpoint(svc domains.Service) endpoint.Endpoint {
+func retrieveEntityEndpoint(svc domains.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(retrieveDomainStatusReq)
+		req := request.(retrieveEntityReq)
 		if err := req.validate(); err != nil {
-			return retrieveDomainStatusRes{}, err
+			return retrieveEntityRes{}, err
 		}
 
-		status, err := svc.RetrieveStatus(ctx, req.ID)
+		dom, err := svc.RetrieveById(ctx, req.ID)
 		if err != nil {
-			return retrieveDomainStatusRes{}, err
+			return retrieveEntityRes{}, err
 		}
 
-		return retrieveDomainStatusRes{status: status.String()}, nil
+		return retrieveEntityRes{
+			id:     dom.ID,
+			name:   dom.Name,
+			status: uint8(dom.Status),
+		}, nil
 	}
 }
