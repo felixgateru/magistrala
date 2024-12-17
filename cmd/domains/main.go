@@ -19,10 +19,14 @@ import (
 	domainsSvc "github.com/absmach/supermq/domains"
 	domainsgrpcapi "github.com/absmach/supermq/domains/api/grpc"
 	httpapi "github.com/absmach/supermq/domains/api/http"
+	"github.com/absmach/supermq/domains/cache"
 	"github.com/absmach/supermq/domains/events"
 	dmw "github.com/absmach/supermq/domains/middleware"
 	dpostgres "github.com/absmach/supermq/domains/postgres"
+	"github.com/absmach/supermq/domains/private"
 	dtracing "github.com/absmach/supermq/domains/tracing"
+	redisclient "github.com/absmach/supermq/internal/clients/redis"
+	grpcDomainsV1 "github.com/absmach/supermq/internal/grpc/domains/v1"
 	smqlog "github.com/absmach/supermq/logger"
 	authsvcAuthn "github.com/absmach/supermq/pkg/authn/authsvc"
 	"github.com/absmach/supermq/pkg/authz"
@@ -46,6 +50,7 @@ import (
 	"github.com/caarlos0/env/v11"
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
+	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -65,16 +70,18 @@ const (
 )
 
 type config struct {
-	LogLevel            string  `env:"SMQ_DOMAINS_LOG_LEVEL"            envDefault:"info"`
-	JaegerURL           url.URL `env:"SMQ_JAEGER_URL"                   envDefault:"http://localhost:4318/v1/traces"`
-	SendTelemetry       bool    `env:"SMQ_SEND_TELEMETRY"               envDefault:"true"`
-	InstanceID          string  `env:"SMQ_DOMAINS_INSTANCE_ID"          envDefault:""`
-	SpicedbHost         string  `env:"SMQ_SPICEDB_HOST"                 envDefault:"localhost"`
-	SpicedbPort         string  `env:"SMQ_SPICEDB_PORT"                 envDefault:"50051"`
-	SpicedbSchemaFile   string  `env:"SMQ_SPICEDB_SCHEMA_FILE"          envDefault:"schema.zed"`
-	SpicedbPreSharedKey string  `env:"SMQ_SPICEDB_PRE_SHARED_KEY"       envDefault:"12345678"`
-	TraceRatio          float64 `env:"SMQ_JAEGER_TRACE_RATIO"           envDefault:"1.0"`
-	ESURL               string  `env:"SMQ_ES_URL"                       envDefault:"nats://localhost:4222"`
+	LogLevel            string        `env:"SMQ_DOMAINS_LOG_LEVEL"            envDefault:"info"`
+	JaegerURL           url.URL       `env:"SMQ_JAEGER_URL"                   envDefault:"http://localhost:4318/v1/traces"`
+	SendTelemetry       bool          `env:"SMQ_SEND_TELEMETRY"               envDefault:"true"`
+	CacheURL            string        `env:"SMQ_DOMAINS_CACHE_URL"            envDefault:"redis://localhost:6379/0"`
+	CacheKeyDuration    time.Duration `env:"SMQ_DOMAINS_CACHE_KEY_DURATION"   envDefault:"10m"`
+	InstanceID          string        `env:"SMQ_DOMAINS_INSTANCE_ID"          envDefault:""`
+	SpicedbHost         string        `env:"SMQ_SPICEDB_HOST"                 envDefault:"localhost"`
+	SpicedbPort         string        `env:"SMQ_SPICEDB_PORT"                 envDefault:"50051"`
+	SpicedbSchemaFile   string        `env:"SMQ_SPICEDB_SCHEMA_FILE"          envDefault:"schema.zed"`
+	SpicedbPreSharedKey string        `env:"SMQ_SPICEDB_PRE_SHARED_KEY"       envDefault:"12345678"`
+	TraceRatio          float64       `env:"SMQ_JAEGER_TRACE_RATIO"           envDefault:"1.0"`
+	ESURL               string        `env:"SMQ_ES_URL"                       envDefault:"nats://localhost:4222"`
 }
 
 func main() {
@@ -170,7 +177,15 @@ func main() {
 	}
 	logger.Info("Policy client successfully connected to spicedb gRPC server")
 
-	svc, err := newDomainService(ctx, db, tracer, cfg, dbConfig, authz, policyService, logger)
+	cacheclient, err := redisclient.Connect(cfg.CacheURL)
+	if err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	defer cacheclient.Close()
+
+	psvc, svc, err := newDomainService(ctx, db, cacheclient, tracer, cfg, dbConfig, authz, policyService, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to create %s service: %s", svcName, err.Error()))
 		exitCode = 1
@@ -185,7 +200,7 @@ func main() {
 	}
 	registerDomainsServiceServer := func(srv *grpc.Server) {
 		reflection.Register(srv)
-		grpcDomainsV1.RegisterDomainsServiceServer(srv, domainsgrpcapi.NewDomainsServer(svc))
+		grpcDomainsV1.RegisterDomainsServiceServer(srv, domainsgrpcapi.NewDomainsServer(psvc))
 	}
 
 	gs := grpcserver.NewServer(ctx, cancel, svcName, grpcServerConfig, registerDomainsServiceServer, logger)
@@ -221,33 +236,37 @@ func main() {
 	}
 }
 
-func newDomainService(ctx context.Context, db *sqlx.DB, tracer trace.Tracer, cfg config, dbConfig pgclient.Config, authz authz.Authorization, policiessvc policies.Service, logger *slog.Logger) (domains.Service, error) {
+func newDomainService(ctx context.Context, db *sqlx.DB, cacheClient *redis.Client, tracer trace.Tracer, cfg config, dbConfig pgclient.Config, authz authz.Authorization, policiessvc policies.Service, logger *slog.Logger) (private.Service, domains.Service, error) {
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 	domainsRepo := dpostgres.New(database)
 
 	idProvider := uuid.New()
 	sidProvider, err := sid.New()
 	if err != nil {
-		return nil, fmt.Errorf("failed to init short id provider : %w", err)
+		return nil, nil, fmt.Errorf("failed to init short id provider : %w", err)
 	}
 
 	availableActions, builtInRoles, err := availableActionsAndBuiltInRoles(cfg.SpicedbSchemaFile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	svc, err := domainsSvc.New(domainsRepo, policiessvc, idProvider, sidProvider, availableActions, builtInRoles)
+	cache := cache.NewDomainsCache(cacheClient, cfg.CacheKeyDuration)
+
+	psvc := private.New(domainsRepo, cache)
+
+	svc, err := domainsSvc.New(domainsRepo, cache, policiessvc, idProvider, sidProvider, availableActions, builtInRoles)
 	if err != nil {
-		return nil, fmt.Errorf("failed to init domain service: %w", err)
+		return nil, nil, fmt.Errorf("failed to init domain service: %w", err)
 	}
 	svc, err = events.NewEventStoreMiddleware(ctx, svc, cfg.ESURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to init domain event store middleware: %w", err)
+		return nil, nil, fmt.Errorf("failed to init domain event store middleware: %w", err)
 	}
 
-	svc, err = dmw.AuthorizationMiddleware(policies.DomainType, svc, authz, domains.NewOperationPermissionMap(), domains.NewRolesOperationPermissionMap())
+	svc, err = dmw.AuthorizationMiddleware(policies.DomainType, svc, psvc, authz, domains.NewOperationPermissionMap(), domains.NewRolesOperationPermissionMap())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	counter, latency := prometheus.MakeMetrics("domains", "api")
@@ -256,7 +275,7 @@ func newDomainService(ctx context.Context, db *sqlx.DB, tracer trace.Tracer, cfg
 	svc = dmw.LoggingMiddleware(svc, logger)
 
 	svc = dtracing.New(svc, tracer)
-	return svc, nil
+	return psvc, svc, nil
 }
 
 func newPolicyService(cfg config, logger *slog.Logger) (policies.Service, error) {

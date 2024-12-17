@@ -86,12 +86,12 @@ func (client domainsGrpcClient) RetrieveEntity(ctx context.Context, in *grpcDoma
 	}
 
 	rdsr := res.(retrieveEntityRes)
-	return &grpcDomainsV1.RetrieveEntityRes{Id: rdsr.id, Name: rdsr.name, Status: uint32(rdsr.status)}, nil
+	return &grpcDomainsV1.RetrieveEntityRes{Id: rdsr.id, Status: uint32(rdsr.status)}, nil
 }
 
 func decodeRetrieveEntityResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {
 	res := grpcRes.(*grpcDomainsV1.RetrieveEntityRes)
-	return retrieveEntityRes{id: res.GetId(), name: res.GetName(), status: uint8(res.GetStatus())}, nil
+	return retrieveEntityRes{id: res.GetId(), status: uint8(res.GetStatus())}, nil
 }
 
 func encodeRetrieveEntityRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {

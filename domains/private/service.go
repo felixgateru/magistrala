@@ -34,20 +34,20 @@ type service struct {
 }
 
 func (svc service) RetrieveById(ctx context.Context, id string) (domains.Domain, error) {
-	// status, err := svc.cache.Status(ctx, id)
-	// if err == nil {
-	// 	return domains.Domain{}, nil
-	// }
+	status, err := svc.cache.Status(ctx, id)
+	if err == nil {
+		return domains.Domain{ID: id, Status: status}, nil
+	}
 	dom, err := svc.repo.RetrieveByID(ctx, id)
 	if err != nil {
 		return domains.Domain{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}
-	// status = dom.Status
-	// if err := svc.cache.Save(ctx, id, status); err != nil {
-	// 	return domains.Domain{}, errors.Wrap(svcerr.ErrUpdateEntity, err)
-	// }
+	status = dom.Status
+	if err := svc.cache.Save(ctx, id, status); err != nil {
+		return domains.Domain{}, errors.Wrap(svcerr.ErrUpdateEntity, err)
+	}
 
-	return dom, nil
+	return domains.Domain{ID: dom.ID, Status: dom.Status}, nil
 }
 
 func (svc service) DeleteUserFromDomains(ctx context.Context, id string) (err error) {

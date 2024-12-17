@@ -15,8 +15,6 @@ import (
 	"github.com/absmach/supermq/pkg/roles"
 )
 
-const defLimit = 100
-
 var (
 	errCreateDomainPolicy = errors.New("failed to create domain policy")
 	errRollbackRepo       = errors.New("failed to rollback repo")
@@ -32,7 +30,7 @@ type service struct {
 
 var _ Service = (*service)(nil)
 
-func New(repo Repository, policy policies.Service, idProvider supermq.IDProvider, sidProvider supermq.IDProvider, availableActions []roles.Action, builtInRoles map[roles.BuiltInRoleName][]roles.Action) (Service, error) {
+func New(repo Repository, cache Cache, policy policies.Service, idProvider supermq.IDProvider, sidProvider supermq.IDProvider, availableActions []roles.Action, builtInRoles map[roles.BuiltInRoleName][]roles.Action) (Service, error) {
 	rpms, err := roles.NewProvisionManageService(policies.DomainType, repo, policy, sidProvider, availableActions, builtInRoles)
 	if err != nil {
 		return nil, err
@@ -40,6 +38,7 @@ func New(repo Repository, policy policies.Service, idProvider supermq.IDProvider
 
 	return &service{
 		repo:                   repo,
+		cache:                  cache,
 		policy:                 policy,
 		idProvider:             idProvider,
 		ProvisionManageService: rpms,
@@ -125,7 +124,7 @@ func (svc service) EnableDomain(ctx context.Context, session authn.Session, id s
 		return Domain{}, errors.Wrap(svcerr.ErrUpdateEntity, err)
 	}
 	if err := svc.cache.Remove(ctx, id); err != nil {
-		return Domain{}, errors.Wrap(svcerr.ErrUpdateEntity, err)
+		return dom, errors.Wrap(svcerr.ErrRemoveEntity, err)
 	}
 
 	return dom, nil
@@ -138,7 +137,7 @@ func (svc service) DisableDomain(ctx context.Context, session authn.Session, id 
 		return Domain{}, errors.Wrap(svcerr.ErrUpdateEntity, err)
 	}
 	if err := svc.cache.Remove(ctx, id); err != nil {
-		return Domain{}, errors.Wrap(svcerr.ErrUpdateEntity, err)
+		return dom, errors.Wrap(svcerr.ErrRemoveEntity, err)
 	}
 
 	return dom, nil
@@ -152,7 +151,7 @@ func (svc service) FreezeDomain(ctx context.Context, session authn.Session, id s
 		return Domain{}, errors.Wrap(svcerr.ErrUpdateEntity, err)
 	}
 	if err := svc.cache.Remove(ctx, id); err != nil {
-		return Domain{}, errors.Wrap(svcerr.ErrUpdateEntity, err)
+		return dom, errors.Wrap(svcerr.ErrRemoveEntity, err)
 	}
 
 	return dom, nil

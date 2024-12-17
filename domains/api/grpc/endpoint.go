@@ -39,7 +39,6 @@ func retrieveEntityEndpoint(svc domains.Service) endpoint.Endpoint {
 
 		return retrieveEntityRes{
 			id:     dom.ID,
-			name:   dom.Name,
 			status: uint8(dom.Status),
 		}, nil
 	}

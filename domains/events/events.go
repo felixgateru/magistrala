@@ -237,15 +237,3 @@ func (lde listDomainsEvent) Encode() (map[string]interface{}, error) {
 
 	return val, nil
 }
-
-type deleteUserFromDomainsEvent struct {
-	userID string
-}
-
-func (dude deleteUserFromDomainsEvent) Encode() (map[string]interface{}, error) {
-	val := map[string]interface{}{
-		"operation": domainUserDelete,
-		"user_id":   dude.userID,
-	}
-	return val, nil
-}

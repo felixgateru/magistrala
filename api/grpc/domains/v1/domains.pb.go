@@ -162,8 +162,7 @@ type RetrieveEntityRes struct {
 	unknownFields protoimpl.UnknownFields
 
 	Id     string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name   string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Status uint32 `protobuf:"varint,3,opt,name=status,proto3" json:"status,omitempty"`
+	Status uint32 `protobuf:"varint,2,opt,name=status,proto3" json:"status,omitempty"`
 }
 
 func (x *RetrieveEntityRes) Reset() {
@@ -199,13 +198,6 @@ func (*RetrieveEntityRes) Descriptor() ([]byte, []int) {
 func (x *RetrieveEntityRes) GetId() string {
 	if x != nil {
 		return x.Id
-	}
-	return ""
-}
-
-func (x *RetrieveEntityRes) GetName() string {
-	if x != nil {
-		return x.Name
 	}
 	return ""
 }

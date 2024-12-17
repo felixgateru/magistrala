@@ -28,6 +28,10 @@ import (
 	pClients "github.com/absmach/supermq/clients/private"
 	"github.com/absmach/supermq/clients/tracing"
 	redisclient "github.com/absmach/supermq/internal/clients/redis"
+	grpcChannelsV1 "github.com/absmach/supermq/internal/grpc/channels/v1"
+	grpcClientsV1 "github.com/absmach/supermq/internal/grpc/clients/v1"
+	grpcDomainsV1 "github.com/absmach/supermq/internal/grpc/domains/v1"
+	grpcGroupsV1 "github.com/absmach/supermq/internal/grpc/groups/v1"
 	smqlog "github.com/absmach/supermq/logger"
 	authsvcAuthn "github.com/absmach/supermq/pkg/authn/authsvc"
 	smqauthz "github.com/absmach/supermq/pkg/authz"
@@ -65,6 +69,7 @@ const (
 	envPrefixAuth      = "SMQ_AUTH_GRPC_"
 	envPrefixChannels  = "SMQ_CHANNELS_GRPC_"
 	envPrefixGroups    = "SMQ_GROUPS_GRPC_"
+	envPrefixDomains   = "SMQ_DOMAINS_GRPC_"
 	defDB              = "clients"
 	defSvcHTTPPort     = "9000"
 	defSvcAuthGRPCPort = "7000"
@@ -218,7 +223,22 @@ func main() {
 	defer groupsHandler.Close()
 	logger.Info("Groups gRPC client successfully connected to groups gRPC server " + groupsHandler.Secure())
 
-	svc, psvc, err := newService(ctx, db, dbConfig, authz, policyEvaluator, policyService, cacheclient, cfg.CacheKeyDuration, cfg.ESURL, channelsgRPC, groupsClient, tracer, logger)
+	domgrpcCfg := grpcclient.Config{}
+	if err := env.ParseWithOptions(&domgrpcCfg, env.Options{Prefix: envPrefixDomains}); err != nil {
+		logger.Error(fmt.Sprintf("failed to load domains gRPC client configuration : %s", err))
+		exitCode = 1
+		return
+	}
+	domainsClient, domainsHandler, err := grpcclient.SetupDomainsClient(ctx, domgrpcCfg)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to connect to domains gRPC server: %s", err))
+		exitCode = 1
+		return
+	}
+	defer domainsHandler.Close()
+	logger.Info("Domains gRPC client successfully connected to domains gRPC server " + domainsHandler.Secure())
+
+	svc, psvc, err := newService(ctx, db, dbConfig, authz, policyEvaluator, policyService, cacheclient, cfg.CacheKeyDuration, cfg.ESURL, domainsClient, channelsgRPC, groupsClient, tracer, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to create services: %s", err))
 		exitCode = 1
@@ -270,7 +290,7 @@ func main() {
 	}
 }
 
-func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, authz smqauthz.Authorization, pe policies.Evaluator, ps policies.Service, cacheClient *redis.Client, keyDuration time.Duration, esURL string, channels grpcChannelsV1.ChannelsServiceClient, groups grpcGroupsV1.GroupsServiceClient, tracer trace.Tracer, logger *slog.Logger) (clients.Service, pClients.Service, error) {
+func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, authz smqauthz.Authorization, pe policies.Evaluator, ps policies.Service, cacheClient *redis.Client, keyDuration time.Duration, esURL string, domains grpcDomainsV1.DomainsServiceClient, channels grpcChannelsV1.ChannelsServiceClient, groups grpcGroupsV1.GroupsServiceClient, tracer trace.Tracer, logger *slog.Logger) (clients.Service, pClients.Service, error) {
 	database := pg.NewDatabase(db, dbConfig, tracer)
 	repo := postgres.NewRepository(database)
 
@@ -299,7 +319,7 @@ func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, auth
 	csvc = middleware.MetricsMiddleware(csvc, counter, latency)
 	csvc = middleware.MetricsMiddleware(csvc, counter, latency)
 
-	csvc, err = middleware.AuthorizationMiddleware(policies.ClientType, csvc, authz, repo, clients.NewOperationPermissionMap(), clients.NewRolesOperationPermissionMap(), clients.NewExternalOperationPermissionMap())
+	csvc, err = middleware.AuthorizationMiddleware(policies.ClientType, csvc, authz, repo, domains, clients.NewOperationPermissionMap(), clients.NewRolesOperationPermissionMap(), clients.NewExternalOperationPermissionMap())
 	if err != nil {
 		return nil, nil, err
 	}

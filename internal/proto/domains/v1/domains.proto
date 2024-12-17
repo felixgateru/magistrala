@@ -28,6 +28,5 @@ message RetrieveEntityReq {
 
 message RetrieveEntityRes {
   string id          = 1;
-  string name        = 2;
-  uint32 status      = 3;
+  uint32 status      = 2;
 }

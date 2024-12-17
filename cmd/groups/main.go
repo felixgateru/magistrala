@@ -26,6 +26,10 @@ import (
 	"github.com/absmach/supermq/groups/postgres"
 	pgroups "github.com/absmach/supermq/groups/private"
 	"github.com/absmach/supermq/groups/tracing"
+	grpcChannelsV1 "github.com/absmach/supermq/internal/grpc/channels/v1"
+	grpcClientsV1 "github.com/absmach/supermq/internal/grpc/clients/v1"
+	grpcDomainsV1 "github.com/absmach/supermq/internal/grpc/domains/v1"
+	grpcGroupsV1 "github.com/absmach/supermq/internal/grpc/groups/v1"
 	smqlog "github.com/absmach/supermq/logger"
 	authsvcAuthn "github.com/absmach/supermq/pkg/authn/authsvc"
 	smqauthz "github.com/absmach/supermq/pkg/authz"
@@ -204,7 +208,22 @@ func main() {
 	defer clientsHandler.Close()
 	logger.Info("Clients gRPC client successfully connected to clients gRPC server " + clientsHandler.Secure())
 
-	svc, psvc, err := newService(ctx, authz, policyService, db, dbConfig, channelsClient, clientsClient, tracer, logger, cfg)
+	domgrpcCfg := grpcclient.Config{}
+	if err := env.ParseWithOptions(&domgrpcCfg, env.Options{Prefix: envPrefixDomains}); err != nil {
+		logger.Error(fmt.Sprintf("failed to load domains gRPC client configuration : %s", err))
+		exitCode = 1
+		return
+	}
+	domainsClient, domainsHandler, err := grpcclient.SetupDomainsClient(ctx, domgrpcCfg)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to connect to domains gRPC server: %s", err))
+		exitCode = 1
+		return
+	}
+	defer domainsHandler.Close()
+	logger.Info("Domains gRPC client successfully connected to domains gRPC server " + domainsHandler.Secure())
+
+	svc, psvc, err := newService(ctx, authz, policyService, db, dbConfig, domainsClient, channelsClient, clientsClient, tracer, logger, cfg)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to setup service: %s", err))
 		exitCode = 1
@@ -256,7 +275,7 @@ func main() {
 	}
 }
 
-func newService(ctx context.Context, authz smqauthz.Authorization, policy policies.Service, db *sqlx.DB, dbConfig pgclient.Config, channels grpcChannelsV1.ChannelsServiceClient, clients grpcClientsV1.ClientsServiceClient, tracer trace.Tracer, logger *slog.Logger, c config) (groups.Service, pgroups.Service, error) {
+func newService(ctx context.Context, authz smqauthz.Authorization, policy policies.Service, db *sqlx.DB, dbConfig pgclient.Config, domains grpcDomainsV1.DomainsServiceClient, channels grpcChannelsV1.ChannelsServiceClient, clients grpcClientsV1.ClientsServiceClient, tracer trace.Tracer, logger *slog.Logger, c config) (groups.Service, pgroups.Service, error) {
 	database := pg.NewDatabase(db, dbConfig, tracer)
 	idp := uuid.New()
 	sid, err := sid.New()
@@ -280,7 +299,7 @@ func newService(ctx context.Context, authz smqauthz.Authorization, policy polici
 		return nil, nil, err
 	}
 
-	svc, err = middleware.AuthorizationMiddleware(policies.GroupType, svc, repo, authz, groups.NewOperationPermissionMap(), groups.NewRolesOperationPermissionMap(), groups.NewExternalOperationPermissionMap())
+	svc, err = middleware.AuthorizationMiddleware(policies.GroupType, svc, repo, authz, domains, groups.NewOperationPermissionMap(), groups.NewRolesOperationPermissionMap(), groups.NewExternalOperationPermissionMap())
 	if err != nil {
 		return nil, nil, err
 	}

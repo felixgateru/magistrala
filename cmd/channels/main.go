@@ -25,6 +25,10 @@ import (
 	"github.com/absmach/supermq/channels/postgres"
 	pChannels "github.com/absmach/supermq/channels/private"
 	"github.com/absmach/supermq/channels/tracing"
+	grpcChannelsV1 "github.com/absmach/supermq/internal/grpc/channels/v1"
+	grpcClientsV1 "github.com/absmach/supermq/internal/grpc/clients/v1"
+	grpcDomainsV1 "github.com/absmach/supermq/internal/grpc/domains/v1"
+	grpcGroupsV1 "github.com/absmach/supermq/internal/grpc/groups/v1"
 	smqlog "github.com/absmach/supermq/logger"
 	authsvcAuthn "github.com/absmach/supermq/pkg/authn/authsvc"
 	smqauthz "github.com/absmach/supermq/pkg/authz"
@@ -61,6 +65,7 @@ const (
 	envPrefixAuth    = "SMQ_AUTH_GRPC_"
 	envPrefixClients = "SMQ_CLIENTS_AUTH_GRPC_"
 	envPrefixGroups  = "SMQ_GROUPS_GRPC_"
+	envPrefixDomains = "SMQ_DOMAINS_GRPC_"
 	defDB            = "channels"
 	defSvcHTTPPort   = "9005"
 	defSvcGRPCPort   = "7005"
@@ -201,7 +206,22 @@ func main() {
 	defer groupsHandler.Close()
 	logger.Info("Groups gRPC client successfully connected to groups gRPC server " + groupsHandler.Secure())
 
-	svc, psvc, err := newService(ctx, db, dbConfig, authz, policyEvaluator, policyService, cfg.ESURL, tracer, clientsClient, groupsClient, logger)
+	domgrpcCfg := grpcclient.Config{}
+	if err := env.ParseWithOptions(&domgrpcCfg, env.Options{Prefix: envPrefixDomains}); err != nil {
+		logger.Error(fmt.Sprintf("failed to load domains gRPC client configuration : %s", err))
+		exitCode = 1
+		return
+	}
+	domainsClient, domainsHandler, err := grpcclient.SetupDomainsClient(ctx, domgrpcCfg)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to connect to domains gRPC server: %s", err))
+		exitCode = 1
+		return
+	}
+	defer domainsHandler.Close()
+	logger.Info("Domains gRPC client successfully connected to domains gRPC server " + domainsHandler.Secure())
+
+	svc, psvc, err := newService(ctx, db, dbConfig, authz, policyEvaluator, policyService, cfg.ESURL, tracer, domainsClient, clientsClient, groupsClient, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to create services: %s", err))
 		exitCode = 1
@@ -254,7 +274,7 @@ func main() {
 }
 
 func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, authz smqauthz.Authorization,
-	pe policies.Evaluator, ps policies.Service, esURL string, tracer trace.Tracer, clientsClient grpcClientsV1.ClientsServiceClient,
+	pe policies.Evaluator, ps policies.Service, esURL string, tracer trace.Tracer, domainsClient grpcDomainsV1.DomainsServiceClient, clientsClient grpcClientsV1.ClientsServiceClient,
 	groupsClient grpcGroupsV1.GroupsServiceClient, logger *slog.Logger,
 ) (channels.Service, pChannels.Service, error) {
 	database := pg.NewDatabase(db, dbConfig, tracer)
@@ -281,7 +301,7 @@ func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, auth
 	counter, latency := prometheus.MakeMetrics("channels", "api")
 	svc = middleware.MetricsMiddleware(svc, counter, latency)
 
-	svc, err = middleware.AuthorizationMiddleware(svc, repo, authz, channels.NewOperationPermissionMap(), channels.NewRolesOperationPermissionMap(), channels.NewExternalOperationPermissionMap())
+	svc, err = middleware.AuthorizationMiddleware(svc, repo, authz, domainsClient, channels.NewOperationPermissionMap(), channels.NewRolesOperationPermissionMap(), channels.NewExternalOperationPermissionMap())
 	if err != nil {
 		return nil, nil, err
 	}

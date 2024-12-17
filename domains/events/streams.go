@@ -74,24 +74,6 @@ func (es *eventStore) RetrieveDomain(ctx context.Context, session authn.Session,
 	return domain, nil
 }
 
-func(es *eventStore) RetrieveStatus(ctx context.Context, id string) (domains.Status, error) {
-	status, err := es.svc.RetrieveStatus(ctx, id)
-	if err != nil {
-		return status, err
-	}
-
-	event := retrieveDomainStatusEvent{
-		id: id,
-		status:   status,
-	}
-
-	if err := es.Publish(ctx, event); err != nil {
-		return status, err
-	}
-
-	return status, nil
-}
-
 func (es *eventStore) UpdateDomain(ctx context.Context, session authn.Session, id string, d domains.DomainReq) (domains.Domain, error) {
 	domain, err := es.svc.UpdateDomain(ctx, session, id, d)
 	if err != nil {
@@ -181,18 +163,4 @@ func (es *eventStore) ListDomains(ctx context.Context, session authn.Session, p 
 	}
 
 	return dp, nil
-}
-
-func (es *eventStore) DeleteUserFromDomains(ctx context.Context, userID string) error {
-	if err := es.svc.DeleteUserFromDomains(ctx, userID); err != nil {
-		return err
-	}
-
-	event := deleteUserFromDomainsEvent{userID}
-
-	if err := es.Publish(ctx, event); err != nil {
-		return err
-	}
-
-	return nil
 }

@@ -68,7 +68,6 @@ func encodeRetrieveEntityResponse(_ context.Context, grpcRes interface{}) (inter
 
 	return &grpcDomainsV1.RetrieveEntityRes{
 		Id:     res.id,
-		Name:   res.name,
 		Status: uint32(res.status),
 	}, nil
 }

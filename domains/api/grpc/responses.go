@@ -9,6 +9,5 @@ type deleteUserRes struct {
 
 type retrieveEntityRes struct {
 	id     string
-	name   string
 	status uint8
 }
