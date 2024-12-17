@@ -27,12 +27,13 @@ import (
 	"github.com/absmach/supermq/channels/tracing"
 	grpcChannelsV1 "github.com/absmach/supermq/internal/grpc/channels/v1"
 	grpcClientsV1 "github.com/absmach/supermq/internal/grpc/clients/v1"
-	grpcDomainsV1 "github.com/absmach/supermq/internal/grpc/domains/v1"
 	grpcGroupsV1 "github.com/absmach/supermq/internal/grpc/groups/v1"
 	smqlog "github.com/absmach/supermq/logger"
 	authsvcAuthn "github.com/absmach/supermq/pkg/authn/authsvc"
+	"github.com/absmach/supermq/pkg/authz"
 	smqauthz "github.com/absmach/supermq/pkg/authz"
 	authsvcAuthz "github.com/absmach/supermq/pkg/authz/authsvc"
+	domainssvcAuthz "github.com/absmach/supermq/pkg/authz/domainssvc"
 	"github.com/absmach/supermq/pkg/grpcclient"
 	jaegerclient "github.com/absmach/supermq/pkg/jaeger"
 	"github.com/absmach/supermq/pkg/policies"
@@ -212,7 +213,7 @@ func main() {
 		exitCode = 1
 		return
 	}
-	domainsClient, domainsHandler, err := grpcclient.SetupDomainsClient(ctx, domgrpcCfg)
+	domainsClient, domainsHandler, err := domainssvcAuthz.NewDomainCheck(ctx, authz, domgrpcCfg)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to connect to domains gRPC server: %s", err))
 		exitCode = 1
@@ -274,7 +275,7 @@ func main() {
 }
 
 func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, authz smqauthz.Authorization,
-	pe policies.Evaluator, ps policies.Service, esURL string, tracer trace.Tracer, domainsClient grpcDomainsV1.DomainsServiceClient, clientsClient grpcClientsV1.ClientsServiceClient,
+	pe policies.Evaluator, ps policies.Service, esURL string, tracer trace.Tracer, domains authz.DomainCheck, clientsClient grpcClientsV1.ClientsServiceClient,
 	groupsClient grpcGroupsV1.GroupsServiceClient, logger *slog.Logger,
 ) (channels.Service, pChannels.Service, error) {
 	database := pg.NewDatabase(db, dbConfig, tracer)
@@ -301,7 +302,7 @@ func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, auth
 	counter, latency := prometheus.MakeMetrics("channels", "api")
 	svc = middleware.MetricsMiddleware(svc, counter, latency)
 
-	svc, err = middleware.AuthorizationMiddleware(svc, repo, authz, domainsClient, channels.NewOperationPermissionMap(), channels.NewRolesOperationPermissionMap(), channels.NewExternalOperationPermissionMap())
+	svc, err = middleware.AuthorizationMiddleware(svc, repo, authz, domains, channels.NewOperationPermissionMap(), channels.NewRolesOperationPermissionMap(), channels.NewExternalOperationPermissionMap())
 	if err != nil {
 		return nil, nil, err
 	}

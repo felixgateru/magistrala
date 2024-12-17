@@ -8,8 +8,6 @@ import (
 	"fmt"
 
 	"github.com/absmach/supermq/channels"
-	"github.com/absmach/supermq/domains"
-	grpcDomainsV1 "github.com/absmach/supermq/internal/grpc/domains/v1"
 	"github.com/absmach/supermq/pkg/authn"
 	"github.com/absmach/supermq/pkg/authz"
 	smqauthz "github.com/absmach/supermq/pkg/authz"
@@ -47,12 +45,12 @@ type authorizationMiddleware struct {
 	authz   smqauthz.Authorization
 	opp     svcutil.OperationPerm
 	extOpp  svcutil.ExternalOperationPerm
-	domains grpcDomainsV1.DomainsServiceClient
+	domains authz.DomainCheck
 	rmMW.RoleManagerAuthorizationMiddleware
 }
 
 // AuthorizationMiddleware adds authorization to the channels service.
-func AuthorizationMiddleware(svc channels.Service, repo channels.Repository, authz smqauthz.Authorization, domains grpcDomainsV1.DomainsServiceClient, channelsOpPerm, rolesOpPerm map[svcutil.Operation]svcutil.Permission, extOpPerm map[svcutil.ExternalOperation]svcutil.Permission) (channels.Service, error) {
+func AuthorizationMiddleware(svc channels.Service, repo channels.Repository, authz smqauthz.Authorization, domains authz.DomainCheck, channelsOpPerm, rolesOpPerm map[svcutil.Operation]svcutil.Permission, extOpPerm map[svcutil.ExternalOperation]svcutil.Permission) (channels.Service, error) {
 	opp := channels.NewOperationPerm()
 	if err := opp.AddOperationPermissionMap(channelsOpPerm); err != nil {
 		return nil, err
@@ -85,7 +83,7 @@ func AuthorizationMiddleware(svc channels.Service, repo channels.Repository, aut
 }
 
 func (am *authorizationMiddleware) CreateChannels(ctx context.Context, session authn.Session, chs ...channels.Channel) ([]channels.Channel, error) {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return []channels.Channel{}, err
 	}
 	if err := am.extAuthorize(ctx, channels.DomainOpCreateChannel, authz.PolicyReq{
@@ -115,7 +113,7 @@ func (am *authorizationMiddleware) CreateChannels(ctx context.Context, session a
 }
 
 func (am *authorizationMiddleware) ViewChannel(ctx context.Context, session authn.Session, id string) (channels.Channel, error) {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return channels.Channel{}, err
 	}
 	if err := am.authorize(ctx, channels.OpViewChannel, authz.PolicyReq{
@@ -131,7 +129,7 @@ func (am *authorizationMiddleware) ViewChannel(ctx context.Context, session auth
 }
 
 func (am *authorizationMiddleware) ListChannels(ctx context.Context, session authn.Session, pm channels.PageMetadata) (channels.Page, error) {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return channels.Page{}, err
 	}
 	if err := am.checkSuperAdmin(ctx, session.UserID); err != nil {
@@ -141,14 +139,14 @@ func (am *authorizationMiddleware) ListChannels(ctx context.Context, session aut
 }
 
 func (am *authorizationMiddleware) ListChannelsByClient(ctx context.Context, session authn.Session, clientID string, pm channels.PageMetadata) (channels.Page, error) {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return channels.Page{}, err
 	}
 	return am.svc.ListChannelsByClient(ctx, session, clientID, pm)
 }
 
 func (am *authorizationMiddleware) UpdateChannel(ctx context.Context, session authn.Session, channel channels.Channel) (channels.Channel, error) {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return channels.Channel{}, err
 	}
 	if err := am.authorize(ctx, channels.OpUpdateChannel, authz.PolicyReq{
@@ -164,7 +162,7 @@ func (am *authorizationMiddleware) UpdateChannel(ctx context.Context, session au
 }
 
 func (am *authorizationMiddleware) UpdateChannelTags(ctx context.Context, session authn.Session, channel channels.Channel) (channels.Channel, error) {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return channels.Channel{}, err
 	}
 	if err := am.authorize(ctx, channels.OpUpdateChannelTags, authz.PolicyReq{
@@ -180,7 +178,7 @@ func (am *authorizationMiddleware) UpdateChannelTags(ctx context.Context, sessio
 }
 
 func (am *authorizationMiddleware) EnableChannel(ctx context.Context, session authn.Session, id string) (channels.Channel, error) {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return channels.Channel{}, err
 	}
 	if err := am.authorize(ctx, channels.OpEnableChannel, authz.PolicyReq{
@@ -196,7 +194,7 @@ func (am *authorizationMiddleware) EnableChannel(ctx context.Context, session au
 }
 
 func (am *authorizationMiddleware) DisableChannel(ctx context.Context, session authn.Session, id string) (channels.Channel, error) {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return channels.Channel{}, err
 	}
 	if err := am.authorize(ctx, channels.OpDisableChannel, authz.PolicyReq{
@@ -212,7 +210,7 @@ func (am *authorizationMiddleware) DisableChannel(ctx context.Context, session a
 }
 
 func (am *authorizationMiddleware) RemoveChannel(ctx context.Context, session authn.Session, id string) error {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return err
 	}
 	if err := am.authorize(ctx, channels.OpDeleteChannel, authz.PolicyReq{
@@ -228,7 +226,7 @@ func (am *authorizationMiddleware) RemoveChannel(ctx context.Context, session au
 }
 
 func (am *authorizationMiddleware) Connect(ctx context.Context, session authn.Session, chIDs, thIDs []string, connTypes []connections.ConnType) error {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return err
 	}
 	for _, chID := range chIDs {
@@ -258,7 +256,7 @@ func (am *authorizationMiddleware) Connect(ctx context.Context, session authn.Se
 }
 
 func (am *authorizationMiddleware) Disconnect(ctx context.Context, session authn.Session, chIDs, thIDs []string, connTypes []connections.ConnType) error {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return err
 	}
 	for _, chID := range chIDs {
@@ -288,7 +286,7 @@ func (am *authorizationMiddleware) Disconnect(ctx context.Context, session authn
 }
 
 func (am *authorizationMiddleware) SetParentGroup(ctx context.Context, session authn.Session, parentGroupID string, id string) error {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return err
 	}
 	if err := am.authorize(ctx, channels.OpSetParentGroup, authz.PolicyReq{
@@ -314,7 +312,7 @@ func (am *authorizationMiddleware) SetParentGroup(ctx context.Context, session a
 }
 
 func (am *authorizationMiddleware) RemoveParentGroup(ctx context.Context, session authn.Session, id string) error {
-	if err := am.checkDomain(ctx, session); err != nil {
+	if err := am.domains.CheckDomain(ctx, session); err != nil {
 		return err
 	}
 	if err := am.authorize(ctx, channels.OpSetParentGroup, authz.PolicyReq{
@@ -387,36 +385,4 @@ func (am *authorizationMiddleware) checkSuperAdmin(ctx context.Context, userID s
 		return err
 	}
 	return nil
-}
-
-func (am *authorizationMiddleware) checkDomain(ctx context.Context, session authn.Session) error {
-	res, err := am.domains.RetrieveEntity(ctx, &grpcDomainsV1.RetrieveEntityReq{Id: session.DomainID})
-	if err != nil {
-		return errors.Wrap(svcerr.ErrViewEntity, err)
-	}
-
-	switch domains.Status(res.Status) {
-	case domains.FreezeStatus:
-		return am.authz.Authorize(ctx, authz.PolicyReq{
-			Subject:     session.UserID,
-			SubjectType: policies.UserType,
-			SubjectKind: policies.UsersKind,
-			Permission:  policies.AdminPermission,
-			Object:      policies.SuperMQObject,
-			ObjectType:  policies.PlatformType,
-		})
-	case domains.DisabledStatus:
-		return am.authz.Authorize(ctx, authz.PolicyReq{
-			Subject:     session.DomainUserID,
-			SubjectType: policies.UserType,
-			SubjectKind: policies.UsersKind,
-			Permission:  policies.AdminPermission,
-			Object:      session.DomainID,
-			ObjectType:  policies.DomainType,
-		})
-	case domains.EnabledStatus:
-		return nil
-	default:
-		return svcerr.ErrInvalidStatus
-	}
 }

@@ -30,12 +30,13 @@ import (
 	redisclient "github.com/absmach/supermq/internal/clients/redis"
 	grpcChannelsV1 "github.com/absmach/supermq/internal/grpc/channels/v1"
 	grpcClientsV1 "github.com/absmach/supermq/internal/grpc/clients/v1"
-	grpcDomainsV1 "github.com/absmach/supermq/internal/grpc/domains/v1"
 	grpcGroupsV1 "github.com/absmach/supermq/internal/grpc/groups/v1"
 	smqlog "github.com/absmach/supermq/logger"
 	authsvcAuthn "github.com/absmach/supermq/pkg/authn/authsvc"
+	"github.com/absmach/supermq/pkg/authz"
 	smqauthz "github.com/absmach/supermq/pkg/authz"
 	authsvcAuthz "github.com/absmach/supermq/pkg/authz/authsvc"
+	domainssvcAuthz "github.com/absmach/supermq/pkg/authz/domainssvc"
 	"github.com/absmach/supermq/pkg/grpcclient"
 	jaegerclient "github.com/absmach/supermq/pkg/jaeger"
 	"github.com/absmach/supermq/pkg/policies"
@@ -229,7 +230,7 @@ func main() {
 		exitCode = 1
 		return
 	}
-	domainsClient, domainsHandler, err := grpcclient.SetupDomainsClient(ctx, domgrpcCfg)
+	domainsClient, domainsHandler, err := domainssvcAuthz.NewDomainCheck(ctx, authz, domgrpcCfg)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to connect to domains gRPC server: %s", err))
 		exitCode = 1
@@ -290,7 +291,7 @@ func main() {
 	}
 }
 
-func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, authz smqauthz.Authorization, pe policies.Evaluator, ps policies.Service, cacheClient *redis.Client, keyDuration time.Duration, esURL string, domains grpcDomainsV1.DomainsServiceClient, channels grpcChannelsV1.ChannelsServiceClient, groups grpcGroupsV1.GroupsServiceClient, tracer trace.Tracer, logger *slog.Logger) (clients.Service, pClients.Service, error) {
+func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, authz smqauthz.Authorization, pe policies.Evaluator, ps policies.Service, cacheClient *redis.Client, keyDuration time.Duration, esURL string, domains authz.DomainCheck, channels grpcChannelsV1.ChannelsServiceClient, groups grpcGroupsV1.GroupsServiceClient, tracer trace.Tracer, logger *slog.Logger) (clients.Service, pClients.Service, error) {
 	database := pg.NewDatabase(db, dbConfig, tracer)
 	repo := postgres.NewRepository(database)
 
