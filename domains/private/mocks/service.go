@@ -34,12 +34,12 @@ func (_m *Service) DeleteUserFromDomains(ctx context.Context, id string) error {
 	return r0
 }
 
-// RetrieveById provides a mock function with given fields: ctx, id
-func (_m *Service) RetrieveById(ctx context.Context, id string) (domains.Domain, error) {
+// RetrieveEntity provides a mock function with given fields: ctx, id
+func (_m *Service) RetrieveEntity(ctx context.Context, id string) (domains.Domain, error) {
 	ret := _m.Called(ctx, id)
 
 	if len(ret) == 0 {
-		panic("no return value specified for RetrieveById")
+		panic("no return value specified for RetrieveEntity")
 	}
 
 	var r0 domains.Domain

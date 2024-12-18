@@ -10,6 +10,7 @@
 package v1
 
 import (
+	v1 "github.com/absmach/supermq/internal/grpc/common/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -111,104 +112,6 @@ func (x *DeleteUserReq) GetId() string {
 	return ""
 }
 
-type RetrieveEntityReq struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-}
-
-func (x *RetrieveEntityReq) Reset() {
-	*x = RetrieveEntityReq{}
-	mi := &file_domains_v1_domains_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RetrieveEntityReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RetrieveEntityReq) ProtoMessage() {}
-
-func (x *RetrieveEntityReq) ProtoReflect() protoreflect.Message {
-	mi := &file_domains_v1_domains_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RetrieveEntityReq.ProtoReflect.Descriptor instead.
-func (*RetrieveEntityReq) Descriptor() ([]byte, []int) {
-	return file_domains_v1_domains_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *RetrieveEntityReq) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-type RetrieveEntityRes struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Id     string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Status uint32 `protobuf:"varint,2,opt,name=status,proto3" json:"status,omitempty"`
-}
-
-func (x *RetrieveEntityRes) Reset() {
-	*x = RetrieveEntityRes{}
-	mi := &file_domains_v1_domains_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RetrieveEntityRes) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RetrieveEntityRes) ProtoMessage() {}
-
-func (x *RetrieveEntityRes) ProtoReflect() protoreflect.Message {
-	mi := &file_domains_v1_domains_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RetrieveEntityRes.ProtoReflect.Descriptor instead.
-func (*RetrieveEntityRes) Descriptor() ([]byte, []int) {
-	return file_domains_v1_domains_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *RetrieveEntityRes) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *RetrieveEntityRes) GetStatus() uint32 {
-	if x != nil {
-		return x.Status
-	}
-	return 0
-}
-
 var File_domains_v1_domains_proto protoreflect.FileDescriptor
 
 var file_domains_v1_domains_proto_rawDesc = []byte{
@@ -243,18 +146,18 @@ func file_domains_v1_domains_proto_rawDescGZIP() []byte {
 	return file_domains_v1_domains_proto_rawDescData
 }
 
-var file_domains_v1_domains_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_domains_v1_domains_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_domains_v1_domains_proto_goTypes = []any{
-	(*DeleteUserRes)(nil),     // 0: domains.v1.DeleteUserRes
-	(*DeleteUserReq)(nil),     // 1: domains.v1.DeleteUserReq
-	(*RetrieveEntityReq)(nil), // 2: domains.v1.RetrieveEntityReq
-	(*RetrieveEntityRes)(nil), // 3: domains.v1.RetrieveEntityRes
+	(*DeleteUserRes)(nil),        // 0: domains.v1.DeleteUserRes
+	(*DeleteUserReq)(nil),        // 1: domains.v1.DeleteUserReq
+	(*v1.RetrieveEntityReq)(nil), // 2: common.v1.RetrieveEntityReq
+	(*v1.RetrieveEntityRes)(nil), // 3: common.v1.RetrieveEntityRes
 }
 var file_domains_v1_domains_proto_depIdxs = []int32{
 	1, // 0: domains.v1.DomainsService.DeleteUserFromDomains:input_type -> domains.v1.DeleteUserReq
-	2, // 1: domains.v1.DomainsService.RetrieveEntity:input_type -> domains.v1.RetrieveEntityReq
+	2, // 1: domains.v1.DomainsService.RetrieveEntity:input_type -> common.v1.RetrieveEntityReq
 	0, // 2: domains.v1.DomainsService.DeleteUserFromDomains:output_type -> domains.v1.DeleteUserRes
-	3, // 3: domains.v1.DomainsService.RetrieveEntity:output_type -> domains.v1.RetrieveEntityRes
+	3, // 3: domains.v1.DomainsService.RetrieveEntity:output_type -> common.v1.RetrieveEntityRes
 	2, // [2:4] is the sub-list for method output_type
 	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -273,7 +176,7 @@ func file_domains_v1_domains_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_domains_v1_domains_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -5,8 +5,6 @@ package authz
 
 import (
 	"context"
-
-	"github.com/absmach/supermq/pkg/authn"
 )
 
 type PolicyReq struct {
@@ -51,8 +49,4 @@ type PolicyReq struct {
 //go:generate mockery --name Authorization --output=./mocks --filename authz.go --quiet --note "Copyright (c) Abstract Machines"
 type Authorization interface {
 	Authorize(ctx context.Context, pr PolicyReq) error
-}
-
-type DomainCheck interface {
-	CheckDomain(ctx context.Context, session authn.Session) error
 }

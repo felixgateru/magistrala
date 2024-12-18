@@ -19,7 +19,7 @@ import (
 	domainsSvc "github.com/absmach/supermq/domains"
 	domainsgrpcapi "github.com/absmach/supermq/domains/api/grpc"
 	httpapi "github.com/absmach/supermq/domains/api/http"
-	"github.com/absmach/supermq/domains/cache"
+	cache "github.com/absmach/supermq/domains/cache"
 	"github.com/absmach/supermq/domains/events"
 	dmw "github.com/absmach/supermq/domains/middleware"
 	dpostgres "github.com/absmach/supermq/domains/postgres"
@@ -31,6 +31,7 @@ import (
 	authsvcAuthn "github.com/absmach/supermq/pkg/authn/authsvc"
 	"github.com/absmach/supermq/pkg/authz"
 	authsvcAuthz "github.com/absmach/supermq/pkg/authz/authsvc"
+	domainsAuthz "github.com/absmach/supermq/pkg/domains/psvc"
 	"github.com/absmach/supermq/pkg/grpcclient"
 	"github.com/absmach/supermq/pkg/jaeger"
 	"github.com/absmach/supermq/pkg/policies"
@@ -49,8 +50,6 @@ import (
 	"github.com/authzed/grpcutil"
 	"github.com/caarlos0/env/v11"
 	"github.com/go-chi/chi/v5"
-	"github.com/jmoiron/sqlx"
-	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -160,7 +159,23 @@ func main() {
 	defer authnHandler.Close()
 	logger.Info("Authn successfully connected to auth gRPC server " + authnHandler.Secure())
 
-	authz, authzHandler, err := authsvcAuthz.NewAuthorization(ctx, clientConfig)
+	database := postgres.NewDatabase(db, dbConfig, tracer)
+	domainsRepo := dpostgres.New(database)
+
+	cacheclient, err := redisclient.Connect(cfg.CacheURL)
+	if err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	defer cacheclient.Close()
+	cache := cache.NewDomainsCache(cacheclient, cfg.CacheKeyDuration)
+
+	psvc := private.New(domainsRepo, cache)
+
+	domAuthz := domainsAuthz.NewAuthorization(psvc)
+
+	authz, authzHandler, err := authsvcAuthz.NewAuthorization(ctx, clientConfig, domAuthz)
 	if err != nil {
 		logger.Error(fmt.Sprintf("authz failed to connect to auth gRPC server : %s", err.Error()))
 		exitCode = 1
@@ -177,15 +192,7 @@ func main() {
 	}
 	logger.Info("Policy client successfully connected to spicedb gRPC server")
 
-	cacheclient, err := redisclient.Connect(cfg.CacheURL)
-	if err != nil {
-		logger.Error(err.Error())
-		exitCode = 1
-		return
-	}
-	defer cacheclient.Close()
-
-	psvc, svc, err := newDomainService(ctx, db, cacheclient, tracer, cfg, dbConfig, authz, policyService, logger)
+	svc, err := newDomainService(ctx, domainsRepo, cache, tracer, cfg, authz, policyService, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to create %s service: %s", svcName, err.Error()))
 		exitCode = 1
@@ -236,37 +243,30 @@ func main() {
 	}
 }
 
-func newDomainService(ctx context.Context, db *sqlx.DB, cacheClient *redis.Client, tracer trace.Tracer, cfg config, dbConfig pgclient.Config, authz authz.Authorization, policiessvc policies.Service, logger *slog.Logger) (private.Service, domains.Service, error) {
-	database := postgres.NewDatabase(db, dbConfig, tracer)
-	domainsRepo := dpostgres.New(database)
-
+func newDomainService(ctx context.Context, domainsRepo domainsSvc.Repository, cache domainsSvc.Cache, tracer trace.Tracer, cfg config, authz authz.Authorization, policiessvc policies.Service, logger *slog.Logger) (domains.Service, error) {
 	idProvider := uuid.New()
 	sidProvider, err := sid.New()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to init short id provider : %w", err)
+		return nil, fmt.Errorf("failed to init short id provider : %w", err)
 	}
 
 	availableActions, builtInRoles, err := availableActionsAndBuiltInRoles(cfg.SpicedbSchemaFile)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	cache := cache.NewDomainsCache(cacheClient, cfg.CacheKeyDuration)
-
-	psvc := private.New(domainsRepo, cache)
 
 	svc, err := domainsSvc.New(domainsRepo, cache, policiessvc, idProvider, sidProvider, availableActions, builtInRoles)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to init domain service: %w", err)
+		return nil, fmt.Errorf("failed to init domain service: %w", err)
 	}
 	svc, err = events.NewEventStoreMiddleware(ctx, svc, cfg.ESURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to init domain event store middleware: %w", err)
+		return nil, fmt.Errorf("failed to init domain event store middleware: %w", err)
 	}
 
-	svc, err = dmw.AuthorizationMiddleware(policies.DomainType, svc, psvc, authz, domains.NewOperationPermissionMap(), domains.NewRolesOperationPermissionMap())
+	svc, err = dmw.AuthorizationMiddleware(policies.DomainType, svc, authz, domains.NewOperationPermissionMap(), domains.NewRolesOperationPermissionMap())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	counter, latency := prometheus.MakeMetrics("domains", "api")
@@ -275,7 +275,7 @@ func newDomainService(ctx context.Context, db *sqlx.DB, cacheClient *redis.Clien
 	svc = dmw.LoggingMiddleware(svc, logger)
 
 	svc = dtracing.New(svc, tracer)
-	return psvc, svc, nil
+	return svc, nil
 }
 
 func newPolicyService(cfg config, logger *slog.Logger) (policies.Service, error) {

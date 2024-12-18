@@ -8,7 +8,9 @@ import (
 
 	grpcDomainsV1 "github.com/absmach/supermq/api/grpc/domains/v1"
 	grpcapi "github.com/absmach/supermq/auth/api/grpc"
-	"github.com/absmach/supermq/domains"
+	domains "github.com/absmach/supermq/domains/private"
+	grpcCommonV1 "github.com/absmach/supermq/internal/grpc/common/v1"
+	grpcDomainsV1 "github.com/absmach/supermq/internal/grpc/domains/v1"
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
 )
 
@@ -56,7 +58,7 @@ func (s *domainsGrpcServer) DeleteUserFromDomains(ctx context.Context, req *grpc
 }
 
 func decodeRetrieveEntityRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
-	req := grpcReq.(*grpcDomainsV1.RetrieveEntityReq)
+	req := grpcReq.(*grpcCommonV1.RetrieveEntityReq)
 
 	return retrieveEntityReq{
 		ID: req.GetId(),
@@ -66,17 +68,19 @@ func decodeRetrieveEntityRequest(_ context.Context, grpcReq interface{}) (interf
 func encodeRetrieveEntityResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {
 	res := grpcRes.(retrieveEntityRes)
 
-	return &grpcDomainsV1.RetrieveEntityRes{
-		Id:     res.id,
-		Status: uint32(res.status),
+	return &grpcCommonV1.RetrieveEntityRes{
+		Entity: &grpcCommonV1.EntityBasic{
+			Id:     res.id,
+			Status: uint32(res.status),
+		},
 	}, nil
 }
 
-func (s *domainsGrpcServer) RetrieveEntity(ctx context.Context, req *grpcDomainsV1.RetrieveEntityReq) (*grpcDomainsV1.RetrieveEntityRes, error) {
+func (s *domainsGrpcServer) RetrieveEntity(ctx context.Context, req *grpcCommonV1.RetrieveEntityReq) (*grpcCommonV1.RetrieveEntityRes, error) {
 	_, res, err := s.retrieveEntity.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, grpcapi.EncodeError(err)
 	}
 
-	return res.(*grpcDomainsV1.RetrieveEntityRes), nil
+	return res.(*grpcCommonV1.RetrieveEntityRes), nil
 }

@@ -15,7 +15,7 @@ const defLimit = 100
 
 //go:generate mockery --name Service  --output=./mocks --filename service.go --quiet --note "Copyright (c) Abstract Machines"
 type Service interface {
-	RetrieveById(ctx context.Context, id string) (domains.Domain, error)
+	RetrieveEntity(ctx context.Context, id string) (domains.Domain, error)
 	DeleteUserFromDomains(ctx context.Context, id string) error
 }
 
@@ -33,7 +33,7 @@ type service struct {
 	cache domains.Cache
 }
 
-func (svc service) RetrieveById(ctx context.Context, id string) (domains.Domain, error) {
+func (svc service) RetrieveEntity(ctx context.Context, id string) (domains.Domain, error) {
 	status, err := svc.cache.Status(ctx, id)
 	if err == nil {
 		return domains.Domain{ID: id, Status: status}, nil

@@ -11,6 +11,7 @@ package v1
 
 import (
 	context "context"
+	v1 "github.com/absmach/supermq/internal/grpc/common/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -34,7 +35,7 @@ const (
 // domains functionalities for SuperMQ services.
 type DomainsServiceClient interface {
 	DeleteUserFromDomains(ctx context.Context, in *DeleteUserReq, opts ...grpc.CallOption) (*DeleteUserRes, error)
-	RetrieveEntity(ctx context.Context, in *RetrieveEntityReq, opts ...grpc.CallOption) (*RetrieveEntityRes, error)
+	RetrieveEntity(ctx context.Context, in *v1.RetrieveEntityReq, opts ...grpc.CallOption) (*v1.RetrieveEntityRes, error)
 }
 
 type domainsServiceClient struct {
@@ -55,9 +56,9 @@ func (c *domainsServiceClient) DeleteUserFromDomains(ctx context.Context, in *De
 	return out, nil
 }
 
-func (c *domainsServiceClient) RetrieveEntity(ctx context.Context, in *RetrieveEntityReq, opts ...grpc.CallOption) (*RetrieveEntityRes, error) {
+func (c *domainsServiceClient) RetrieveEntity(ctx context.Context, in *v1.RetrieveEntityReq, opts ...grpc.CallOption) (*v1.RetrieveEntityRes, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RetrieveEntityRes)
+	out := new(v1.RetrieveEntityRes)
 	err := c.cc.Invoke(ctx, DomainsService_RetrieveEntity_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -73,7 +74,7 @@ func (c *domainsServiceClient) RetrieveEntity(ctx context.Context, in *RetrieveE
 // domains functionalities for SuperMQ services.
 type DomainsServiceServer interface {
 	DeleteUserFromDomains(context.Context, *DeleteUserReq) (*DeleteUserRes, error)
-	RetrieveEntity(context.Context, *RetrieveEntityReq) (*RetrieveEntityRes, error)
+	RetrieveEntity(context.Context, *v1.RetrieveEntityReq) (*v1.RetrieveEntityRes, error)
 	mustEmbedUnimplementedDomainsServiceServer()
 }
 
@@ -87,7 +88,7 @@ type UnimplementedDomainsServiceServer struct{}
 func (UnimplementedDomainsServiceServer) DeleteUserFromDomains(context.Context, *DeleteUserReq) (*DeleteUserRes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserFromDomains not implemented")
 }
-func (UnimplementedDomainsServiceServer) RetrieveEntity(context.Context, *RetrieveEntityReq) (*RetrieveEntityRes, error) {
+func (UnimplementedDomainsServiceServer) RetrieveEntity(context.Context, *v1.RetrieveEntityReq) (*v1.RetrieveEntityRes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RetrieveEntity not implemented")
 }
 func (UnimplementedDomainsServiceServer) mustEmbedUnimplementedDomainsServiceServer() {}
@@ -130,7 +131,7 @@ func _DomainsService_DeleteUserFromDomains_Handler(srv interface{}, ctx context.
 }
 
 func _DomainsService_RetrieveEntity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RetrieveEntityReq)
+	in := new(v1.RetrieveEntityReq)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -142,7 +143,7 @@ func _DomainsService_RetrieveEntity_Handler(srv interface{}, ctx context.Context
 		FullMethod: DomainsService_RetrieveEntity_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DomainsServiceServer).RetrieveEntity(ctx, req.(*RetrieveEntityReq))
+		return srv.(DomainsServiceServer).RetrieveEntity(ctx, req.(*v1.RetrieveEntityReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }

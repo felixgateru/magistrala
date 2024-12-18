@@ -40,17 +40,16 @@ var (
 var _ groups.Service = (*authorizationMiddleware)(nil)
 
 type authorizationMiddleware struct {
-	svc     groups.Service
-	repo    groups.Repository
-	authz   smqauthz.Authorization
-	opp     svcutil.OperationPerm
-	extOpp  svcutil.ExternalOperationPerm
-	domains authz.DomainCheck
+	svc    groups.Service
+	repo   groups.Repository
+	authz  smqauthz.Authorization
+	opp    svcutil.OperationPerm
+	extOpp svcutil.ExternalOperationPerm
 	rmMW.RoleManagerAuthorizationMiddleware
 }
 
 // AuthorizationMiddleware adds authorization to the clients service.
-func AuthorizationMiddleware(entityType string, svc groups.Service, repo groups.Repository, authz smqauthz.Authorization, domains authz.DomainCheck, groupsOpPerm, rolesOpPerm map[svcutil.Operation]svcutil.Permission, extOpPerm map[svcutil.ExternalOperation]svcutil.Permission) (groups.Service, error) {
+func AuthorizationMiddleware(entityType string, svc groups.Service, repo groups.Repository, authz smqauthz.Authorization, groupsOpPerm, rolesOpPerm map[svcutil.Operation]svcutil.Permission, extOpPerm map[svcutil.ExternalOperation]svcutil.Permission) (groups.Service, error) {
 	opp := groups.NewOperationPerm()
 	if err := opp.AddOperationPermissionMap(groupsOpPerm); err != nil {
 		return nil, err
@@ -76,15 +75,11 @@ func AuthorizationMiddleware(entityType string, svc groups.Service, repo groups.
 		authz:                              authz,
 		opp:                                opp,
 		extOpp:                             extOpp,
-		domains:                            domains,
 		RoleManagerAuthorizationMiddleware: ram,
 	}, nil
 }
 
 func (am *authorizationMiddleware) CreateGroup(ctx context.Context, session authn.Session, g groups.Group) (groups.Group, error) {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return groups.Group{}, err
-	}
 	if err := am.extAuthorize(ctx, groups.DomainOpCreateGroup, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
@@ -113,9 +108,6 @@ func (am *authorizationMiddleware) CreateGroup(ctx context.Context, session auth
 }
 
 func (am *authorizationMiddleware) UpdateGroup(ctx context.Context, session authn.Session, g groups.Group) (groups.Group, error) {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return groups.Group{}, err
-	}
 	if err := am.authorize(ctx, groups.OpUpdateGroup, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
@@ -131,9 +123,6 @@ func (am *authorizationMiddleware) UpdateGroup(ctx context.Context, session auth
 }
 
 func (am *authorizationMiddleware) ViewGroup(ctx context.Context, session authn.Session, id string) (groups.Group, error) {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return groups.Group{}, err
-	}
 	if err := am.authorize(ctx, groups.OpViewGroup, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
@@ -149,9 +138,6 @@ func (am *authorizationMiddleware) ViewGroup(ctx context.Context, session authn.
 }
 
 func (am *authorizationMiddleware) ListGroups(ctx context.Context, session authn.Session, gm groups.PageMeta) (groups.Page, error) {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return groups.Page{}, err
-	}
 	err := am.checkSuperAdmin(ctx, session.UserID)
 	if err == nil {
 		session.SuperAdmin = true
@@ -171,9 +157,6 @@ func (am *authorizationMiddleware) ListGroups(ctx context.Context, session authn
 }
 
 func (am *authorizationMiddleware) ListUserGroups(ctx context.Context, session authn.Session, userID string, pm groups.PageMeta) (groups.Page, error) {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return groups.Page{}, err
-	}
 	err := am.checkSuperAdmin(ctx, session.UserID)
 	if err == nil {
 		session.SuperAdmin = true
@@ -193,9 +176,6 @@ func (am *authorizationMiddleware) ListUserGroups(ctx context.Context, session a
 }
 
 func (am *authorizationMiddleware) EnableGroup(ctx context.Context, session authn.Session, id string) (groups.Group, error) {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return groups.Group{}, err
-	}
 	if err := am.authorize(ctx, groups.OpEnableGroup, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
@@ -210,9 +190,6 @@ func (am *authorizationMiddleware) EnableGroup(ctx context.Context, session auth
 }
 
 func (am *authorizationMiddleware) DisableGroup(ctx context.Context, session authn.Session, id string) (groups.Group, error) {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return groups.Group{}, err
-	}
 	if err := am.authorize(ctx, groups.OpDisableGroup, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
@@ -227,9 +204,6 @@ func (am *authorizationMiddleware) DisableGroup(ctx context.Context, session aut
 }
 
 func (am *authorizationMiddleware) DeleteGroup(ctx context.Context, session authn.Session, id string) error {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return err
-	}
 	if err := am.authorize(ctx, groups.OpDeleteGroup, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
@@ -244,9 +218,6 @@ func (am *authorizationMiddleware) DeleteGroup(ctx context.Context, session auth
 }
 
 func (am *authorizationMiddleware) RetrieveGroupHierarchy(ctx context.Context, session authn.Session, id string, hm groups.HierarchyPageMeta) (groups.HierarchyPage, error) {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return groups.HierarchyPage{}, err
-	}
 	if err := am.authorize(ctx, groups.OpRetrieveGroupHierarchy, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
@@ -260,9 +231,6 @@ func (am *authorizationMiddleware) RetrieveGroupHierarchy(ctx context.Context, s
 }
 
 func (am *authorizationMiddleware) AddParentGroup(ctx context.Context, session authn.Session, id, parentID string) error {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return err
-	}
 	if err := am.authorize(ctx, groups.OpAddParentGroup, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
@@ -286,9 +254,6 @@ func (am *authorizationMiddleware) AddParentGroup(ctx context.Context, session a
 }
 
 func (am *authorizationMiddleware) RemoveParentGroup(ctx context.Context, session authn.Session, id string) error {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return err
-	}
 	if err := am.authorize(ctx, groups.OpRemoveParentGroup, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
@@ -319,9 +284,6 @@ func (am *authorizationMiddleware) RemoveParentGroup(ctx context.Context, sessio
 }
 
 func (am *authorizationMiddleware) AddChildrenGroups(ctx context.Context, session authn.Session, id string, childrenGroupIDs []string) error {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return err
-	}
 	if err := am.authorize(ctx, groups.OpAddChildrenGroups, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
@@ -348,9 +310,6 @@ func (am *authorizationMiddleware) AddChildrenGroups(ctx context.Context, sessio
 }
 
 func (am *authorizationMiddleware) RemoveChildrenGroups(ctx context.Context, session authn.Session, id string, childrenGroupIDs []string) error {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return err
-	}
 	if err := am.authorize(ctx, groups.OpRemoveChildrenGroups, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
@@ -365,9 +324,6 @@ func (am *authorizationMiddleware) RemoveChildrenGroups(ctx context.Context, ses
 }
 
 func (am *authorizationMiddleware) RemoveAllChildrenGroups(ctx context.Context, session authn.Session, id string) error {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return err
-	}
 	if err := am.authorize(ctx, groups.OpRemoveAllChildrenGroups, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
@@ -382,9 +338,6 @@ func (am *authorizationMiddleware) RemoveAllChildrenGroups(ctx context.Context, 
 }
 
 func (am *authorizationMiddleware) ListChildrenGroups(ctx context.Context, session authn.Session, id string, startLevel, endLevel int64, pm groups.PageMeta) (groups.Page, error) {
-	if err := am.domains.CheckDomain(ctx, session); err != nil {
-		return groups.Page{}, err
-	}
 	if err := am.authorize(ctx, groups.OpListChildrenGroups, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,

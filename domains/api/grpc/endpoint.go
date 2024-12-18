@@ -32,7 +32,7 @@ func retrieveEntityEndpoint(svc domains.Service) endpoint.Endpoint {
 			return retrieveEntityRes{}, err
 		}
 
-		dom, err := svc.RetrieveById(ctx, req.ID)
+		dom, err := svc.RetrieveEntity(ctx, req.ID)
 		if err != nil {
 			return retrieveEntityRes{}, err
 		}
