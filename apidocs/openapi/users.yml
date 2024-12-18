@@ -482,6 +482,7 @@ paths:
         - $ref: "#/components/parameters/FirstName"
         - $ref: "#/components/parameters/LastName"
         - $ref: "#/components/parameters/Email"
+        - $ref: "#/components/parameters/UserID"
       security:
         - bearerAuth: []
       responses:
