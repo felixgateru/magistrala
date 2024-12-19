@@ -9,8 +9,7 @@ import (
 
 	grpcDomainsV1 "github.com/absmach/supermq/api/grpc/domains/v1"
 	grpcapi "github.com/absmach/supermq/auth/api/grpc"
-	grpcCommonV1 "github.com/absmach/supermq/internal/grpc/common/v1"
-	grpcDomainsV1 "github.com/absmach/supermq/internal/grpc/domains/v1"
+	grpcCommonV1 "github.com/absmach/supermq/api/grpc/common/v1"
 	"github.com/go-kit/kit/endpoint"
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
 	"google.golang.org/grpc"

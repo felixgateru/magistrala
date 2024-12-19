@@ -77,24 +77,6 @@ func (_m *Service) CreateDomain(ctx context.Context, sesssion authn.Session, d d
 	return r0, r1
 }
 
-// DeleteUserFromDomains provides a mock function with given fields: ctx, id
-func (_m *Service) DeleteUserFromDomains(ctx context.Context, id string) error {
-	ret := _m.Called(ctx, id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for DeleteUserFromDomains")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, id)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // DisableDomain provides a mock function with given fields: ctx, sesssion, id
 func (_m *Service) DisableDomain(ctx context.Context, sesssion authn.Session, id string) (domains.Domain, error) {
 	ret := _m.Called(ctx, sesssion, id)
@@ -350,34 +332,6 @@ func (_m *Service) RetrieveRole(ctx context.Context, session authn.Session, enti
 
 	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, string, string) error); ok {
 		r1 = rf(ctx, session, entityID, roleName)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// RetrieveStatus provides a mock function with given fields: ctx, id
-func (_m *Service) RetrieveStatus(ctx context.Context, id string) (domains.Status, error) {
-	ret := _m.Called(ctx, id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for RetrieveStatus")
-	}
-
-	var r0 domains.Status
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (domains.Status, error)); ok {
-		return rf(ctx, id)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) domains.Status); ok {
-		r0 = rf(ctx, id)
-	} else {
-		r0 = ret.Get(0).(domains.Status)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, id)
 	} else {
 		r1 = ret.Error(1)
 	}

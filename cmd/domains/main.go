@@ -26,7 +26,6 @@ import (
 	"github.com/absmach/supermq/domains/private"
 	dtracing "github.com/absmach/supermq/domains/tracing"
 	redisclient "github.com/absmach/supermq/internal/clients/redis"
-	grpcDomainsV1 "github.com/absmach/supermq/internal/grpc/domains/v1"
 	smqlog "github.com/absmach/supermq/logger"
 	authsvcAuthn "github.com/absmach/supermq/pkg/authn/authsvc"
 	"github.com/absmach/supermq/pkg/authz"

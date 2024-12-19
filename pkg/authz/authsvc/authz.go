@@ -9,7 +9,6 @@ import (
 	grpcAuthV1 "github.com/absmach/supermq/api/grpc/auth/v1"
 	"github.com/absmach/supermq/auth/api/grpc/auth"
 	"github.com/absmach/supermq/domains"
-	grpcAuthV1 "github.com/absmach/supermq/internal/grpc/auth/v1"
 	"github.com/absmach/supermq/pkg/authz"
 	pkgDomians "github.com/absmach/supermq/pkg/domains"
 	"github.com/absmach/supermq/pkg/errors"
