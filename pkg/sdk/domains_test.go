@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
+	api "github.com/absmach/supermq/api/http"
 	apiutil "github.com/absmach/supermq/api/http/util"
 	"github.com/absmach/supermq/domains"
 	domainapi "github.com/absmach/supermq/domains/api/http"
 	"github.com/absmach/supermq/domains/mocks"
-	api "github.com/absmach/supermq/api/http"
 	"github.com/absmach/supermq/internal/testsutil"
 	smqlog "github.com/absmach/supermq/logger"
 	smqauthn "github.com/absmach/supermq/pkg/authn"
