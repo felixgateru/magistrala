@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	grpcapi "github.com/absmach/supermq/domains/api/grpc"
-	domains "github.com/absmach/supermq/domains/private"
 	grpcDomainsV1 "github.com/absmach/supermq/api/grpc/domains/v1"
 	apiutil "github.com/absmach/supermq/api/http/util"
+	grpcapi "github.com/absmach/supermq/domains/api/grpc"
+	domains "github.com/absmach/supermq/domains/private"
 	"github.com/absmach/supermq/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

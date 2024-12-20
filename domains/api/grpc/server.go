@@ -6,10 +6,10 @@ package grpc
 import (
 	"context"
 
+	grpcCommonV1 "github.com/absmach/supermq/api/grpc/common/v1"
 	grpcDomainsV1 "github.com/absmach/supermq/api/grpc/domains/v1"
 	grpcapi "github.com/absmach/supermq/auth/api/grpc"
 	domains "github.com/absmach/supermq/domains/private"
-	grpcCommonV1 "github.com/absmach/supermq/api/grpc/common/v1"
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
 )
 

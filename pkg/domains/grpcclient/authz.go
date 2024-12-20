@@ -6,9 +6,9 @@ package grpcclient
 import (
 	"context"
 
-	"github.com/absmach/supermq/domains"
 	grpcCommonV1 "github.com/absmach/supermq/api/grpc/common/v1"
 	grpcDomainsV1 "github.com/absmach/supermq/api/grpc/domains/v1"
+	"github.com/absmach/supermq/domains"
 	pkgDomains "github.com/absmach/supermq/pkg/domains"
 	"github.com/absmach/supermq/pkg/grpcclient"
 )
